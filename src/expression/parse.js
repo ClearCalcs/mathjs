@@ -131,6 +131,7 @@ export const createParse = /* #__PURE__ */ factory(name, dependencies, ({
     '"': true,
     '\'': true,
     ';': true,
+    '`': true,
 
     '+': true,
     '-': true,
@@ -1260,10 +1261,14 @@ export const createParse = /* #__PURE__ */ factory(name, dependencies, ({
     let node, name
 
     if (state.tokenType === TOKENTYPE.SYMBOL ||
-        (state.tokenType === TOKENTYPE.DELIMITER && state.token in NAMED_DELIMITERS)) {
-      name = state.token
-
-      getToken(state)
+        (state.tokenType === TOKENTYPE.DELIMITER && state.token in NAMED_DELIMITERS) ||
+        state.token === '`') {
+      if (state.token === '`') {
+        name = parseQuotedSymbolToken(state)
+      } else {
+        name = state.token
+        getToken(state)
+      }
 
       if (hasOwnProperty(CONSTANTS, name)) { // true, false, null, ...
         node = new ConstantNode(CONSTANTS[name])
@@ -1279,6 +1284,28 @@ export const createParse = /* #__PURE__ */ factory(name, dependencies, ({
     }
 
     return parseDoubleQuotesString(state)
+  }
+
+  function parseQuotedSymbolToken (state) {
+    let name = ''
+
+    while (currentCharacter(state) !== '' && currentCharacter(state) !== '`') {
+      if (currentCharacter(state) === '\\') {
+        // escape character for closing ` - skip it
+        next(state)
+      }
+
+      name += currentCharacter(state)
+      next(state)
+    }
+
+    getToken(state)
+    if (state.token !== '`') {
+      throw createSyntaxError(state, 'End of symbol ` expected')
+    }
+    getToken(state)
+
+    return name
   }
 
   /**
