@@ -520,34 +520,7 @@ describe('Unit', function () {
       assert.strictEqual(unit1.toString(), '1 N')
     })
 
-    it('should simplify units when they cancel out with {predictable: true}', function () {
-      const math2 = math.create({ predictable: true })
-      const unit1 = new math2.Unit(2, 'Hz')
-      const unit2 = new math2.Unit(2, 's')
-      const unit3 = math2.multiply(unit1, unit2)
-      assert.strictEqual(unit3.toString(), '4')
-      assert.strictEqual(unit3.simplify().units.length, 0)
-
-      const nounit = math2.evaluate('40m * 40N / (40J)')
-      assert.strictEqual(nounit.toString(), '40')
-      assert.strictEqual(nounit.simplify().units.length, 0)
-
-      const a = math2.unit('3 s^-1')
-      const b = math2.unit('4 s')
-      assert.strictEqual(math2.multiply(a, b).type, 'Unit')
-
-      const c = math2.unit('8.314 J / mol / K')
-      assert.strictEqual(math2.pow(c, 0).type, 'Unit')
-
-      const d = math2.unit('60 minute')
-      const e = math2.unit('1 s')
-      assert.strictEqual(math2.divide(d, e).type, 'Unit')
-    })
-
-    it('should convert units to appropriate _numeric_ values when they cancel out with {predictable: false}', function () {
-      const origConfig = math.config()
-      math.config({ predictable: false })
-
+    it('should convert units to appropriate _numeric_ values when they cancel out', function () {
       assert.strictEqual(typeof (math.evaluate('40 m * 40 N / (40 J)')), 'number')
 
       let bigunit = math.unit(math.bignumber(1), 'km')
@@ -572,8 +545,6 @@ describe('Unit', function () {
       const d = math.unit('60 minute')
       const e = math.unit('1 s')
       assert.strictEqual(typeof (math.divide(d, e)), 'number')
-
-      math.config(origConfig)
     })
 
     it('should simplify units according to chosen unit system', function () {
