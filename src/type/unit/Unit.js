@@ -775,12 +775,12 @@ export const createUnitClass = /* #__PURE__ */ factory(name, dependencies, ({
   }
 
   /**
-   * Return the numeric value of this unit if it is dimensionless, has a value, and config.predictable == false; or the original unit otherwise
+   * Return the numeric value of this unit if it is dimensionless, and has a value; or the original unit otherwise
    * @param {Unit} unit
    * @returns {number | Fraction | BigNumber | Unit}  The numeric value of the unit if conditions are met, or the original unit otherwise
    */
   function getNumericIfUnitless (unit) {
-    if (unit.equalBase(BASE_UNITS.NONE) && unit.value !== null && !config.predictable) {
+    if (unit.equalBase(BASE_UNITS.NONE) && unit.value !== null) {
       return unit.value
     } else {
       return unit
