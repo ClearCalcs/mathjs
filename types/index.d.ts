@@ -216,7 +216,7 @@ declare namespace math {
   }
 
   interface ConstantNodeCtor {
-    new(constant: number): ConstantNode;
+    new(constant: any): ConstantNode;
   }
 
   interface FunctionAssignmentNode extends MathNodeCommon {
@@ -235,6 +235,7 @@ declare namespace math {
     isFunctionNode: true;
     fn: SymbolNode;
     args: MathNode[];
+    name: string;
   }
   interface FunctionNodeCtor {
     new(fn: MathNode | string, args: MathNode[]): FunctionNode;
@@ -2699,6 +2700,12 @@ declare namespace math {
      */
     isZero(x: number | BigNumber | Fraction | MathArray | Matrix | Unit | Complex): boolean;
 
+    isBigNumber(x: any): x is BigNumber;
+
+    isComplex(x: any): x is Complex;
+
+    isUnit(x: any): x is Unit;
+
     /**
      * Determine the type of a variable.
      * @param x The variable for which to test the type
@@ -3140,6 +3147,7 @@ declare namespace math {
     formatUnits(): string;
     format(options: FormatOptions): string;
     splitUnit(parts: ReadonlyArray<string | Unit>): Unit[];
+    value: number;
   }
 
   interface CreateUnitOptions {
