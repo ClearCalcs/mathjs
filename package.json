@@ -163,7 +163,8 @@
     "test:types": " tsc -p ./tsconfig.json && node --loader ts-node/esm ./test/typescript-tests/testTypes.ts",
     "coverage": "c8 --reporter=lcov --reporter=text-summary mocha test/unit-tests && echo \"\nDetailed coverage report is available at ./coverage/lcov-report/index.html\"",
     "prepublishOnly": "npm run test:all && npm run lint",
-    "update-authors": "node ./tools/update-authors.js"
+    "update-authors": "node ./tools/update-authors.js",
+    "prepare": "npm run build"
   },
   "bin": {
     "mathjs": "./bin/cli.js"
