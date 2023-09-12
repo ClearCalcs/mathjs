@@ -124,7 +124,7 @@
     "CONTRIBUTING.md"
   ],
   "scripts": {
-    "build": "gulp --gulpfile gulpfile.cjs",
+    "build": "NODE_OPTIONS=--openssl-legacy-provider gulp --gulpfile gulpfile.cjs",
     "build-and-test": "npm run build && npm run test:all && npm run lint",
     "build:clean": "gulp --gulpfile gulpfile.cjs clean",
     "build:docs": "gulp --gulpfile gulpfile.cjs docs",
