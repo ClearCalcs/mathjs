@@ -1,6 +1,4 @@
-'use strict'
-
-const hasOwnProperty = require('./object').hasOwnProperty
+import { hasOwnProperty } from './object.js'
 
 /**
  * Get a property of a plain object
@@ -43,6 +41,14 @@ function setSafeProperty (object, prop, value) {
   throw new Error('No access to property "' + prop + '"')
 }
 
+function getSafeProperties (object) {
+  return Object.keys(object).filter((prop) => hasOwnProperty(object, prop))
+}
+
+function hasSafeProperty (object, prop) {
+  return prop in object
+}
+
 /**
  * Test whether a property is safe to use for an object.
  * For example .toString and .constructor are not safe
@@ -82,12 +88,14 @@ function isSafeProperty (object, prop) {
  * Throws an error when that's not the case.
  * @param {Object} object
  * @param {string} method
+ * @return {function} Returns the method when valid
  */
-// TODO: merge this function into assign.js?
-function validateSafeMethod (object, method) {
+function getSafeMethod (object, method) {
   if (!isSafeMethod(object, method)) {
     throw new Error('No access to method "' + method + '"')
   }
+
+  return object[method]
 }
 
 /**
@@ -98,7 +106,7 @@ function validateSafeMethod (object, method) {
  * @return {boolean} Returns true when safe, false otherwise
  */
 function isSafeMethod (object, method) {
-  if (!object || typeof object[method] !== 'function') {
+  if (object === null || object === undefined || typeof object[method] !== 'function') {
     return false
   }
   // UNSAFE: ghosted
@@ -147,9 +155,11 @@ const safeNativeMethods = {
   toLocaleString: true
 }
 
-exports.getSafeProperty = getSafeProperty
-exports.setSafeProperty = setSafeProperty
-exports.isSafeProperty = isSafeProperty
-exports.validateSafeMethod = validateSafeMethod
-exports.isSafeMethod = isSafeMethod
-exports.isPlainObject = isPlainObject
+export { getSafeProperty }
+export { setSafeProperty }
+export { isSafeProperty }
+export { hasSafeProperty }
+export { getSafeProperties }
+export { getSafeMethod }
+export { isSafeMethod }
+export { isPlainObject }

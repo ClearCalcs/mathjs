@@ -1,9 +1,12 @@
-'use strict'
+import { format } from '../../utils/string.js'
+import { isString } from '../../utils/is.js'
+import { factory } from '../../utils/factory.js'
+import { printTemplate } from '../../utils/print.js'
 
-const isString = require('../../utils/string').isString
-const format = require('../../utils/string').format
+const name = 'print'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createPrint = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Interpolate values into a string template.
    *
@@ -48,16 +51,12 @@ function factory (type, config, load, typed) {
    *                                    of all options.
    * @return {string} Interpolated string
    */
-  const print = typed('print', {
+  return typed(name, {
     // note: Matrix will be converted automatically to an Array
     'string, Object | Array': _print,
     'string, Object | Array, number | Object': _print
   })
-
-  print.toTex = undefined // use default template
-
-  return print
-}
+})
 
 /**
  * Interpolate values into a string template.
@@ -68,9 +67,12 @@ function factory (type, config, load, typed) {
  * @private
  */
 function _print (template, values, options) {
-  return template.replace(/\$([\w.]+)/g, function (original, key) {
+  return template.replace(printTemplate, function (original, key) {
     const keys = key.split('.')
     let value = values[keys.shift()]
+    if (value !== undefined && value.isMatrix) {
+      value = value.toArray()
+    }
     while (keys.length && value !== undefined) {
       const k = keys.shift()
       value = k ? value[k] : value + '.'
@@ -88,6 +90,3 @@ function _print (template, values, options) {
   }
   )
 }
-
-exports.name = 'print'
-exports.factory = factory

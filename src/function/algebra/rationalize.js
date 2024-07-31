@@ -1,15 +1,64 @@
-'use strict'
+import { isInteger } from '../../utils/number.js'
+import { factory } from '../../utils/factory.js'
 
-function factory (type, config, load, typed) {
-  const simplify = load(require('./simplify'))
-  const simplifyCore = load(require('./simplify/simplifyCore'))
-  const simplifyConstant = load(require('./simplify/simplifyConstant'))
-  const parse = load(require('../../expression/function/parse'))
-  const number = require('../../utils/number')
-  const ConstantNode = load(require('../../expression/node/ConstantNode'))
-  const OperatorNode = load(require('../../expression/node/OperatorNode'))
-  const SymbolNode = load(require('../../expression/node/SymbolNode'))
+const name = 'rationalize'
+const dependencies = [
+  'config',
+  'typed',
+  'equal',
+  'isZero',
+  'add',
+  'subtract',
+  'multiply',
+  'divide',
+  'pow',
+  'parse',
+  'simplifyConstant',
+  'simplifyCore',
+  'simplify',
+  '?bignumber',
+  '?fraction',
+  'mathWithTransform',
+  'matrix',
+  'AccessorNode',
+  'ArrayNode',
+  'ConstantNode',
+  'FunctionNode',
+  'IndexNode',
+  'ObjectNode',
+  'OperatorNode',
+  'SymbolNode',
+  'ParenthesisNode'
+]
 
+export const createRationalize = /* #__PURE__ */ factory(name, dependencies, ({
+  config,
+  typed,
+  equal,
+  isZero,
+  add,
+  subtract,
+  multiply,
+  divide,
+  pow,
+  parse,
+  simplifyConstant,
+  simplifyCore,
+  simplify,
+  fraction,
+  bignumber,
+  mathWithTransform,
+  matrix,
+  AccessorNode,
+  ArrayNode,
+  ConstantNode,
+  FunctionNode,
+  IndexNode,
+  ObjectNode,
+  OperatorNode,
+  SymbolNode,
+  ParenthesisNode
+}) => {
   /**
    * Transform a rationalizable expression in a rational fraction.
    * If rational fraction is one variable polynomial then converts
@@ -18,10 +67,10 @@ function factory (type, config, load, typed) {
    *
    * Syntax:
    *
-   *     rationalize(expr)
-   *     rationalize(expr, detailed)
-   *     rationalize(expr, scope)
-   *     rationalize(expr, scope, detailed)
+   *     math.rationalize(expr)
+   *     math.rationalize(expr, detailed)
+   *     math.rationalize(expr, scope)
+   *     math.rationalize(expr, scope, detailed)
    *
    * Examples:
    *
@@ -53,108 +102,91 @@ function factory (type, config, load, typed) {
    * @param  {Object|boolean}      optional scope of expression or true for already evaluated rational expression at input
    * @param  {Boolean}  detailed   optional True if return an object, false if return expression node (default)
    *
-   * @return {Object | Expression Node}    The rational polynomial of `expr` or na object
-   *            {Object}
-   *              {Expression Node} expression: node simplified expression
-   *              {Expression Node} numerator: simplified numerator of expression
-   *              {Expression Node | boolean} denominator: simplified denominator or false (if there is no denominator)
-   *              {Array}           variables:  variable names
-   *              {Array}           coefficients: coefficients of numerator sorted by increased exponent
+   * @return {Object | Node}    The rational polynomial of `expr` or an object
+   *            `{expression, numerator, denominator, variables, coefficients}`, where
+   *              `expression` is a `Node` with the node simplified expression,
+   *              `numerator` is a `Node` with the simplified numerator of expression,
+   *              `denominator` is a `Node` or `boolean` with the simplified denominator or `false` (if there is no denominator),
+   *              `variables` is an array with variable names,
+   *              and `coefficients` is an array with coefficients of numerator sorted by increased exponent
    *           {Expression Node}  node simplified expression
    *
    */
-  const rationalize = typed('rationalize', {
-    'string': function (expr) {
-      return rationalize(parse(expr), {}, false)
-    },
+  function _rationalize (expr, scope = {}, detailed = false) {
+    const setRules = rulesRationalize() // Rules for change polynomial in near canonical form
+    const polyRet = polynomial(expr, scope, true, setRules.firstRules) // Check if expression is a rationalizable polynomial
+    const nVars = polyRet.variables.length
+    const noExactFractions = { exactFractions: false }
+    const withExactFractions = { exactFractions: true }
+    expr = polyRet.expression
 
-    'string, boolean': function (expr, detailed) {
-      return rationalize(parse(expr), {}, detailed)
-    },
+    if (nVars >= 1) { // If expression in not a constant
+      expr = expandPower(expr) // First expand power of polynomials (cannot be made from rules!)
+      let sBefore // Previous expression
+      let rules
+      let eDistrDiv = true
+      let redoInic = false
+      // Apply the initial rules, including succ div rules:
+      expr = simplify(expr, setRules.firstRules, {}, noExactFractions)
+      let s
+      while (true) {
+        // Alternate applying successive division rules and distr.div.rules
+        // until there are no more changes:
+        rules = eDistrDiv ? setRules.distrDivRules : setRules.sucDivRules
+        expr = simplify(expr, rules, {}, withExactFractions)
+        eDistrDiv = !eDistrDiv // Swap between Distr.Div and Succ. Div. Rules
 
-    'string, Object': function (expr, scope) {
-      return rationalize(parse(expr), scope, false)
-    },
-
-    'string, Object, boolean': function (expr, scope, detailed) {
-      return rationalize(parse(expr), scope, detailed)
-    },
-
-    'Node': function (expr) {
-      return rationalize(expr, {}, false)
-    },
-
-    'Node, boolean': function (expr, detailed) {
-      return rationalize(expr, {}, detailed)
-    },
-
-    'Node, Object': function (expr, scope) {
-      return rationalize(expr, scope, false)
-    },
-
-    'Node, Object, boolean': function (expr, scope, detailed) {
-      const setRules = rulesRationalize() // Rules for change polynomial in near canonical form
-      const polyRet = polynomial(expr, scope, true, setRules.firstRules) // Check if expression is a rationalizable polynomial
-      const nVars = polyRet.variables.length
-      expr = polyRet.expression
-
-      if (nVars >= 1) { // If expression in not a constant
-        expr = expandPower(expr) // First expand power of polynomials (cannot be made from rules!)
-        let sBefore // Previous expression
-        let rules
-        let eDistrDiv = true
-        let redoInic = false
-        expr = simplify(expr, setRules.firstRules, {}, { exactFractions: false }) // Apply the initial rules, including succ div rules
-        let s
-        while (true) { // Apply alternately  successive division rules and distr.div.rules
-          rules = eDistrDiv ? setRules.distrDivRules : setRules.sucDivRules
-          expr = simplify(expr, rules) // until no more changes
-          eDistrDiv = !eDistrDiv // Swap between Distr.Div and Succ. Div. Rules
-
-          s = expr.toString()
-          if (s === sBefore) {
-            break // No changes : end of the loop
-          }
-
-          redoInic = true
-          sBefore = s
+        s = expr.toString()
+        if (s === sBefore) {
+          break // No changes : end of the loop
         }
 
-        if (redoInic) { // Apply first rules again without succ div rules (if there are changes)
-          expr = simplify(expr, setRules.firstRulesAgain, {}, { exactFractions: false })
-        }
-        expr = simplify(expr, setRules.finalRules, {}, { exactFractions: false }) // Apply final rules
-      } // NVars >= 1
-
-      const coefficients = []
-      const retRationalize = {}
-
-      if (expr.type === 'OperatorNode' && expr.isBinary() && expr.op === '/') { // Separate numerator from denominator
-        if (nVars === 1) {
-          expr.args[0] = polyToCanonical(expr.args[0], coefficients)
-          expr.args[1] = polyToCanonical(expr.args[1])
-        }
-        if (detailed) {
-          retRationalize.numerator = expr.args[0]
-          retRationalize.denominator = expr.args[1]
-        }
-      } else {
-        if (nVars === 1) {
-          expr = polyToCanonical(expr, coefficients)
-        }
-        if (detailed) {
-          retRationalize.numerator = expr
-          retRationalize.denominator = null
-        }
+        redoInic = true
+        sBefore = s
       }
-      // nVars
 
-      if (!detailed) return expr
-      retRationalize.coefficients = coefficients
-      retRationalize.variables = polyRet.variables
-      retRationalize.expression = expr
-      return retRationalize
-    } // ^^^^^^^ end of rationalize ^^^^^^^^
+      if (redoInic) { // Apply first rules again without succ div rules (if there are changes)
+        expr = simplify(expr, setRules.firstRulesAgain, {}, noExactFractions)
+      }
+      // Apply final rules:
+      expr = simplify(expr, setRules.finalRules, {}, noExactFractions)
+    } // NVars >= 1
+
+    const coefficients = []
+    const retRationalize = {}
+
+    if (expr.type === 'OperatorNode' && expr.isBinary() && expr.op === '/') { // Separate numerator from denominator
+      if (nVars === 1) {
+        expr.args[0] = polyToCanonical(expr.args[0], coefficients)
+        expr.args[1] = polyToCanonical(expr.args[1])
+      }
+      if (detailed) {
+        retRationalize.numerator = expr.args[0]
+        retRationalize.denominator = expr.args[1]
+      }
+    } else {
+      if (nVars === 1) {
+        expr = polyToCanonical(expr, coefficients)
+      }
+      if (detailed) {
+        retRationalize.numerator = expr
+        retRationalize.denominator = null
+      }
+    }
+    // nVars
+
+    if (!detailed) return expr
+    retRationalize.coefficients = coefficients
+    retRationalize.variables = polyRet.variables
+    retRationalize.expression = expr
+    return retRationalize
+  }
+
+  return typed(name, {
+    Node: _rationalize,
+    'Node, boolean': (expr, detailed) => _rationalize(expr, {}, detailed),
+    'Node, Object': _rationalize,
+    'Node, Object, boolean': _rationalize
   }) // end of typed rationalize
 
   /**
@@ -213,16 +245,14 @@ function factory (type, config, load, typed) {
         throw new Error('There is an unsolved function call')
       } else if (tp === 'OperatorNode') {
         if (node.op === '^') {
-          if (node.args[1].fn === 'unaryMinus') {
-            node = node.args[0]
-          }
-          if (node.args[1].type !== 'ConstantNode' || !number.isInteger(parseFloat(node.args[1].value))) {
+          // TODO: handle negative exponents like in '1/x^(-2)'
+          if (node.args[1].type !== 'ConstantNode' || !isInteger(parseFloat(node.args[1].value))) {
             throw new Error('There is a non-integer exponent')
           } else {
             recPoly(node.args[0])
           }
         } else {
-          if (oper.indexOf(node.op) === -1) {
+          if (!oper.includes(node.op)) {
             throw new Error('Operator ' + node.op + ' invalid in polynomial expression')
           }
           for (let i = 0; i < node.args.length; i++) {
@@ -367,7 +397,7 @@ function factory (type, config, load, typed) {
             node.args[0].type === 'OperatorNode') &&
             (node.args[1].type === 'ConstantNode')) { // Second operator: Constant
           val = parseFloat(node.args[1].value)
-          does = (val >= 2 && number.isInteger(val))
+          does = (val >= 2 && isInteger(val))
         }
       }
 
@@ -506,7 +536,7 @@ function factory (type, config, load, typed) {
         throw new Error('There is an unsolved function call')
       } else if (tp === 'OperatorNode') {
         // ***** OperatorName *****
-        if ('+-*^'.indexOf(node.op) === -1) throw new Error('Operator ' + node.op + ' invalid')
+        if (!'+-*^'.includes(node.op)) throw new Error('Operator ' + node.op + ' invalid')
 
         if (noPai !== null) {
           // -(unary),^  : children of *,+,-
@@ -568,7 +598,7 @@ function factory (type, config, load, typed) {
           // cte: second  child of power
           if (o.noFil !== 1) throw new Error('Constant cannot be powered')
 
-          if (!number.isInteger(valor) || valor <= 0) { throw new Error('Non-integer exponent is not allowed') }
+          if (!isInteger(valor) || valor <= 0) { throw new Error('Non-integer exponent is not allowed') }
 
           for (let i = maxExpo + 1; i < valor; i++) coefficients[i] = 0
           if (valor > maxExpo) coefficients[valor] = 0
@@ -583,9 +613,4 @@ function factory (type, config, load, typed) {
       } else { throw new Error('Type ' + tp + ' is not allowed') }
     } // End of recurPol
   } // End of polyToCanonical
-
-  return rationalize
-} // end of factory
-
-exports.name = 'rationalize'
-exports.factory = factory
+})

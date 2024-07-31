@@ -1,10 +1,15 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
+import { factory } from '../../../utils/factory.js'
+import { csLeaf } from './csLeaf.js'
 
-function factory (type, config, load) {
-  const transpose = load(require('../../matrix/transpose'))
+const name = 'csCounts'
+const dependencies = [
+  'transpose'
+]
 
-  const csLeaf = load(require('./csLeaf'))
-
+export const createCsCounts = /* #__PURE__ */ factory(name, dependencies, ({ transpose }) => {
   /**
    * Computes the column counts using the upper triangular part of A.
    * It transposes A internally, none of the input parameters are modified.
@@ -14,10 +19,8 @@ function factory (type, config, load) {
    * @param {Matrix} ata         Count the columns of A'A instead
    *
    * @return                     An array of size n of the column counts or null on error
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
    */
-  const csCounts = function (a, parent, post, ata) {
+  return function (a, parent, post, ata) {
     // check inputs
     if (!a || !parent || !post) { return null }
     // a matrix arrays
@@ -100,10 +103,4 @@ function factory (type, config, load) {
     }
     return colcount
   }
-
-  return csCounts
-}
-
-exports.name = 'csCounts'
-exports.path = 'algebra.sparse'
-exports.factory = factory
+})

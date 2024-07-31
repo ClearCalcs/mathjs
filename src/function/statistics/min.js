@@ -1,16 +1,15 @@
-'use strict'
+import { containsCollections, deepForEach, reduce } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
+import { safeNumberType } from '../../utils/number.js'
+import { improveErrorMessage } from './utils/improveErrorMessage.js'
 
-const deepForEach = require('../../utils/collection/deepForEach')
-const reduce = require('../../utils/collection/reduce')
-const containsCollections = require('../../utils/collection/containsCollections')
+const name = 'min'
+const dependencies = ['typed', 'config', 'numeric', 'smaller']
 
-function factory (type, config, load, typed) {
-  const smaller = load(require('../relational/smaller'))
-  const improveErrorMessage = load(require('./utils/improveErrorMessage'))
-
+export const createMin = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, numeric, smaller }) => {
   /**
    * Compute the minimum value of a matrix or a  list of values.
-   * In case of a multi dimensional array, the minimum of the flattened array
+   * In case of a multidimensional array, the minimum of the flattened array
    * will be calculated. When `dim` is provided, the minimum over the selected
    * dimension will be calculated. Parameter `dim` is zero-based.
    *
@@ -18,7 +17,7 @@ function factory (type, config, load, typed) {
    *
    *     math.min(a, b, c, ...)
    *     math.min(A)
-   *     math.min(A, dim)
+   *     math.min(A, dimension)
    *
    * Examples:
    *
@@ -34,12 +33,12 @@ function factory (type, config, load, typed) {
    *
    * See also:
    *
-   *    mean, median, max, prod, std, sum, var
+   *    mean, median, max, prod, std, sum, variance
    *
    * @param {... *} args  A single matrix or or multiple scalar values
    * @return {*} The minimum value
    */
-  const min = typed('min', {
+  return typed(name, {
     // min([a, b, c, d, ...])
     'Array | Matrix': _min,
 
@@ -57,10 +56,6 @@ function factory (type, config, load, typed) {
       return _min(args)
     }
   })
-
-  min.toTex = `\\min\\left(\${args}\\right)`
-
-  return min
 
   /**
    * Return the smallest of two values
@@ -102,9 +97,11 @@ function factory (type, config, load, typed) {
       throw new Error('Cannot calculate min of an empty array')
     }
 
+    // make sure returning numeric value: parse a string into a numeric value
+    if (typeof min === 'string') {
+      min = numeric(min, safeNumberType(min, config))
+    }
+
     return min
   }
-}
-
-exports.name = 'min'
-exports.factory = factory
+})

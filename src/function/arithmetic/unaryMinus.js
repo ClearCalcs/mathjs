@@ -1,10 +1,11 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
+import { unaryMinusNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'unaryMinus'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
+export const createUnaryMinus = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Inverse the sign of a value, apply a unary minus operation.
    *
@@ -25,46 +26,25 @@ function factory (type, config, load, typed) {
    *
    *    add, subtract, unaryPlus
    *
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x Number to be inverted.
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} Returns the value with inverted sign.
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} x Number to be inverted.
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} Returns the value with inverted sign.
    */
-  const unaryMinus = typed('unaryMinus', {
-    'number': function (x) {
-      return -x
-    },
+  return typed(name, {
+    number: unaryMinusNumber,
 
-    'Complex': function (x) {
-      return x.neg()
-    },
+    'Complex | BigNumber | Fraction': x => x.neg(),
 
-    'BigNumber': function (x) {
-      return x.neg()
-    },
+    bigint: x => -x,
 
-    'Fraction': function (x) {
-      return x.neg()
-    },
-
-    'Unit': function (x) {
+    Unit: typed.referToSelf(self => x => {
       const res = x.clone()
-      res.value = unaryMinus(x.value)
+      res.value = typed.find(self, res.valueType())(x.value)
       return res
-    },
+    }),
 
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since unaryMinus(0) = 0
-      return deepMap(x, unaryMinus, true)
-    }
+    // deep map collection, skip zeros since unaryMinus(0) = 0
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self, true))
 
     // TODO: add support for string
   })
-
-  unaryMinus.toTex = {
-    1: `${latex.operators['unaryMinus']}\\left(\${args[0]}\\right)`
-  }
-
-  return unaryMinus
-}
-
-exports.name = 'unaryMinus'
-exports.factory = factory
+})

@@ -1,16 +1,36 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo07xSSf } from '../../type/matrix/utils/matAlgo07xSSf.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const pow = load(require('./pow'))
-  const latex = require('../../utils/latex')
+const name = 'dotPow'
+const dependencies = [
+  'typed',
+  'equalScalar',
+  'matrix',
+  'pow',
+  'DenseMatrix',
+  'concat'
+]
 
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm07 = load(require('../../type/matrix/utils/algorithm07'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createDotPow = /* #__PURE__ */ factory(name, dependencies, ({ typed, equalScalar, matrix, pow, DenseMatrix, concat }) => {
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo07xSSf = createMatAlgo07xSSf({ typed, DenseMatrix })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
+
+  const powScalarSignatures = {}
+  for (const signature in pow.signatures) {
+    if (Object.prototype.hasOwnProperty.call(pow.signatures, signature)) {
+      if (!signature.includes('Matrix') && !signature.includes('Array')) {
+        powScalarSignatures[signature] = pow.signatures[signature]
+      }
+    }
+  }
+  const powScalar = typed(powScalarSignatures)
 
   /**
    * Calculates the power of x to y element wise.
@@ -35,74 +55,11 @@ function factory (type, config, load, typed) {
    * @param  {number | BigNumber | Complex | Unit | Array | Matrix} y  The exponent
    * @return {number | BigNumber | Complex | Unit | Array | Matrix}                     The value of `x` to the power `y`
    */
-  const dotPow = typed('dotPow', {
-
-    'any, any': pow,
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm07(x, y, pow, false)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm03(y, x, pow, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, pow, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, pow)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return dotPow(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return dotPow(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return dotPow(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm11(x, y, dotPow, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, dotPow, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm12(y, x, dotPow, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, dotPow, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, dotPow, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, dotPow, true).valueOf()
-    }
-  })
-
-  dotPow.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['dotPow']}\${args[1]}\\right)`
-  }
-
-  return dotPow
-}
-
-exports.name = 'dotPow'
-exports.factory = factory
+  return typed(name, matrixAlgorithmSuite({
+    elop: powScalar,
+    SS: matAlgo07xSSf,
+    DS: matAlgo03xDSf,
+    Ss: matAlgo11xS0s,
+    sS: matAlgo12xSfs
+  }))
+})

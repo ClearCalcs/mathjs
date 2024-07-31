@@ -1,18 +1,37 @@
-'use strict'
+import { isConstantNode, typeOf } from '../../utils/is.js'
+import { factory } from '../../utils/factory.js'
+import { safeNumberType } from '../../utils/number.js'
 
-function factory (type, config, load, typed) {
-  const parse = load(require('../../expression/parse'))
-  const simplify = load(require('./simplify'))
-  const equal = load(require('../relational/equal'))
-  const isZero = load(require('../utils/isZero'))
-  const getType = load(require('../utils/typeof'))
-  const numeric = load(require('../../type/numeric'))
-  const ConstantNode = load(require('../../expression/node/ConstantNode'))
-  const FunctionNode = load(require('../../expression/node/FunctionNode'))
-  const OperatorNode = load(require('../../expression/node/OperatorNode'))
-  const ParenthesisNode = load(require('../../expression/node/ParenthesisNode'))
-  const SymbolNode = load(require('../../expression/node/SymbolNode'))
+const name = 'derivative'
+const dependencies = [
+  'typed',
+  'config',
+  'parse',
+  'simplify',
+  'equal',
+  'isZero',
+  'numeric',
+  'ConstantNode',
+  'FunctionNode',
+  'OperatorNode',
+  'ParenthesisNode',
+  'SymbolNode'
+]
 
+export const createDerivative = /* #__PURE__ */ factory(name, dependencies, ({
+  typed,
+  config,
+  parse,
+  simplify,
+  equal,
+  isZero,
+  numeric,
+  ConstantNode,
+  FunctionNode,
+  OperatorNode,
+  ParenthesisNode,
+  SymbolNode
+}) => {
   /**
    * Takes the derivative of an expression expressed in parser Nodes.
    * The derivative will be taken over the supplied variable in the
@@ -21,27 +40,27 @@ function factory (type, config, load, typed) {
    *
    * This uses rules of differentiation which can be found here:
    *
-   * - [Differentiation rules (Wikipedia)](http://en.wikipedia.org/wiki/Differentiation_rules)
+   * - [Differentiation rules (Wikipedia)](https://en.wikipedia.org/wiki/Differentiation_rules)
    *
    * Syntax:
    *
-   *     derivative(expr, variable)
-   *     derivative(expr, variable, options)
+   *     math.derivative(expr, variable)
+   *     math.derivative(expr, variable, options)
    *
    * Examples:
    *
-   *     math.derivative('x^2', 'x')                     // Node {2 * x}
-   *     math.derivative('x^2', 'x', {simplify: false})  // Node {2 * 1 * x ^ (2 - 1)
-   *     math.derivative('sin(2x)', 'x'))                // Node {2 * cos(2 * x)}
-   *     math.derivative('2*x', 'x').eval()              // number 2
-   *     math.derivative('x^2', 'x').eval({x: 4})        // number 8
+   *     math.derivative('x^2', 'x')                     // Node '2 * x'
+   *     math.derivative('x^2', 'x', {simplify: false})  // Node '2 * 1 * x ^ (2 - 1)'
+   *     math.derivative('sin(2x)', 'x'))                // Node '2 * cos(2 * x)'
+   *     math.derivative('2*x', 'x').evaluate()          // number 2
+   *     math.derivative('x^2', 'x').evaluate({x: 4})    // number 8
    *     const f = math.parse('x^2')
    *     const x = math.parse('x')
    *     math.derivative(f, x)                           // Node {2 * x}
    *
    * See also:
    *
-   *     simplify, parse, eval
+   *     simplify, parse, evaluate
    *
    * @param  {Node | string} expr           The expression to differentiate
    * @param  {SymbolNode | string} variable The variable over which to differentiate
@@ -51,39 +70,19 @@ function factory (type, config, load, typed) {
    *                         be simplified.
    * @return {ConstantNode | SymbolNode | ParenthesisNode | FunctionNode | OperatorNode}    The derivative of `expr`
    */
-  const derivative = typed('derivative', {
-    'Node, SymbolNode, Object': function (expr, variable, options) {
-      const constNodes = {}
-      constTag(constNodes, expr, variable.name)
-      const res = _derivative(expr, constNodes)
-      return options.simplify ? simplify(res) : res
-    },
-    'Node, SymbolNode': function (expr, variable) {
-      return derivative(expr, variable, { simplify: true })
-    },
+  function plainDerivative (expr, variable, options = { simplify: true }) {
+    const constNodes = {}
+    constTag(constNodes, expr, variable.name)
+    const res = _derivative(expr, constNodes)
+    return options.simplify ? simplify(res) : res
+  }
 
-    'string, SymbolNode': function (expr, variable) {
-      return derivative(parse(expr), variable)
-    },
-    'string, SymbolNode, Object': function (expr, variable, options) {
-      return derivative(parse(expr), variable, options)
-    },
+  typed.addConversion(
+    { from: 'identifier', to: 'SymbolNode', convert: parse })
 
-    'string, string': function (expr, variable) {
-      return derivative(parse(expr), parse(variable))
-    },
-    'string, string, Object': function (expr, variable, options) {
-      return derivative(parse(expr), parse(variable), options)
-    },
-
-    'Node, string': function (expr, variable) {
-      return derivative(expr, parse(variable))
-    },
-    'Node, string, Object': function (expr, variable, options) {
-      return derivative(expr, parse(variable), options)
-    }
-
-    // TODO: replace the 8 signatures above with 4 as soon as typed-function supports optional arguments
+  const derivative = typed(name, {
+    'Node, SymbolNode': plainDerivative,
+    'Node, SymbolNode, Object': plainDerivative
 
     /* TODO: implement and test syntax with order of derivatives -> implement as an option {order: number}
     'Node, SymbolNode, ConstantNode': function (expr, variable, {order}) {
@@ -98,23 +97,27 @@ function factory (type, config, load, typed) {
     */
   })
 
+  typed.removeConversion(
+    { from: 'identifier', to: 'SymbolNode', convert: parse })
+
   derivative._simplify = true
 
   derivative.toTex = function (deriv) {
     return _derivTex.apply(null, deriv.args)
   }
 
+  // FIXME: move the toTex method of derivative to latex.js. Difficulty is that it relies on parse.
   // NOTE: the optional "order" parameter here is currently unused
   const _derivTex = typed('_derivTex', {
     'Node, SymbolNode': function (expr, x) {
-      if (type.isConstantNode(expr) && getType(expr.value) === 'string') {
+      if (isConstantNode(expr) && typeOf(expr.value) === 'string') {
         return _derivTex(parse(expr.value).toString(), x.toString(), 1)
       } else {
-        return _derivTex(expr.toString(), x.toString(), 1)
+        return _derivTex(expr.toTex(), x.toString(), 1)
       }
     },
     'Node, ConstantNode': function (expr, x) {
-      if (getType(x.value) === 'string') {
+      if (typeOf(x.value) === 'string') {
         return _derivTex(expr, parse(x.value))
       } else {
         throw new Error("The second parameter to 'derivative' is a non-string constant")
@@ -170,7 +173,7 @@ function factory (type, config, load, typed) {
     },
 
     'Object, FunctionAssignmentNode, string': function (constNodes, node, varName) {
-      if (node.params.indexOf(varName) === -1) {
+      if (!node.params.includes(varName)) {
         constNodes[node] = true
         return true
       }
@@ -224,10 +227,6 @@ function factory (type, config, load, typed) {
     },
 
     'FunctionNode, Object': function (node, constNodes) {
-      if (node.args.length !== 1) {
-        funcArgsCheck(node)
-      }
-
       if (constNodes[node] !== undefined) {
         return createConstantNode(0)
       }
@@ -298,6 +297,13 @@ function factory (type, config, load, typed) {
               new FunctionNode('log', [arg0]),
               new FunctionNode('log', [node.args[1]])
             ]), constNodes)
+          }
+          break
+        case 'pow':
+          if (node.args.length === 2) {
+            constNodes[arg1] = constNodes[node.args[1]]
+            // Pass to pow operator node parser
+            return _derivative(new OperatorNode('^', 'pow', [arg0, node.args[1]]), constNodes)
           }
           break
         case 'exp':
@@ -557,7 +563,9 @@ function factory (type, config, load, typed) {
           ])
           break
         case 'gamma': // Needs digamma function, d/dx(gamma(x)) = gamma(x)digamma(x)
-        default: throw new Error('Function "' + node.name + '" is not supported by derivative, or a wrong number of arguments is passed')
+        default:
+          throw new Error('Cannot process function "' + node.name + '" in derivative: ' +
+          'the function is not supported, undefined, or the number of arguments passed to it are not supported')
       }
 
       let op, func
@@ -674,7 +682,7 @@ function factory (type, config, load, typed) {
 
         if (constNodes[arg0] !== undefined) {
           // If is secretly constant; 0^f(x) = 1 (in JS), 1^f(x) = 1
-          if (type.isConstantNode(arg0) && (isZero(arg0.value) || equal(arg0.value, 1))) {
+          if (isConstantNode(arg0) && (isZero(arg0.value) || equal(arg0.value, 1))) {
             return createConstantNode(0)
           }
 
@@ -689,7 +697,7 @@ function factory (type, config, load, typed) {
         }
 
         if (constNodes[arg1] !== undefined) {
-          if (type.isConstantNode(arg1)) {
+          if (isConstantNode(arg1)) {
             // If is secretly constant; f(x)^0 = 1 -> d/dx(1) = 0
             if (isZero(arg1.value)) {
               return createConstantNode(0)
@@ -734,33 +742,10 @@ function factory (type, config, load, typed) {
         ])
       }
 
-      throw new Error('Operator "' + node.op + '" is not supported by derivative, or a wrong number of arguments is passed')
+      throw new Error('Cannot process operator "' + node.op + '" in derivative: ' +
+        'the operator is not supported, undefined, or the number of arguments passed to it are not supported')
     }
   })
-
-  /**
-   * Ensures the number of arguments for a function are correct,
-   * and will throw an error otherwise.
-   *
-   * @param {FunctionNode} node
-   */
-  function funcArgsCheck (node) {
-    // TODO add min, max etc
-    if ((node.name === 'log' || node.name === 'nthRoot') && node.args.length === 2) {
-      return
-    }
-
-    // There should be an incorrect number of arguments if we reach here
-
-    // Change all args to constants to avoid unidentified
-    // symbol error when compiling function
-    for (let i = 0; i < node.args.length; ++i) {
-      node.args[i] = createConstantNode(0)
-    }
-
-    node.compile().eval()
-    throw new Error('Expected TypeError, but none found')
-  }
 
   /**
    * Helper function to create a constant node with a specific type
@@ -770,11 +755,8 @@ function factory (type, config, load, typed) {
    * @return {ConstantNode}
    */
   function createConstantNode (value, valueType) {
-    return new ConstantNode(numeric(value, valueType || config.number))
+    return new ConstantNode(numeric(value, valueType || safeNumberType(String(value), config)))
   }
 
   return derivative
-}
-
-exports.name = 'derivative'
-exports.factory = factory
+})

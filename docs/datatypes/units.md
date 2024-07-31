@@ -14,7 +14,8 @@ full name and an abbreviation. The returned object is a `Unit`.
 Syntax:
 
 ```js
-math.unit(value: number, name: string) : Unit
+math.unit(value: number, valuelessUnit: string) : Unit
+math.unit(value: number, valuelessUnit: Unit) : Unit
 math.unit(unit: string) : Unit
 math.unit(unit: Unit) : Unit
 ```
@@ -28,32 +29,47 @@ const c = math.unit('2 inch')             // Unit 2 inch
 const d = math.unit('90 km/h')            // Unit 90 km/h
 const e = math.unit('101325 kg/(m s^2)')  // Unit 101325 kg / (m s^2)
 
-const d = c.to('cm')                      // Unit 5.08 cm
+const f = c.to('cm')                      // Unit 5.08 cm
 b.toNumber('gram')                        // Number 100
 math.number(b, 'gram')                    // Number 100
 
 c.equals(a)                               // false
-c.equals(d)                               // true
+c.equals(f)                               // true
 c.equalBase(a)                            // true
 c.equalBase(b)                            // false
 
-d.toString()                              // String "5.08 cm"
+f.toString()                              // String "5.08 cm"
+
+const kph = math.unit('km/h')             // valueless Unit km/h
+const mps = math.unit('m/s')              // valueless Unit m/s
+const speed = math.unit(36, kph)          // Unit 36 km/h
+speed.toNumber(mps)                       // Number 10
 ```
 
 Use care when creating a unit with multiple terms in the denominator. Implicit multiplication has the same operator precedence as explicit multiplication and division, which means these three expressions are identical:
 
 ```js
 // These three are identical
-const correct1 = math.unit('8.314 m^3 Pa / mol / K')          // Unit 8.314 (m^3 Pa) / (mol K)
-const correct2 = math.unit('8.314 (m^3 Pa) / (mol K)')        // Unit 8.314 (m^3 Pa) / (mol K)
-const correct3 = math.unit('8.314 (m^3 * Pa) / (mol * K)')    // Unit 8.314 (m^3 Pa) / (mol K)
+const correct1 = math.unit('8.314 m^3 Pa / mol / K')           // Unit 8.314 (m^3 Pa) / (mol K)
+const correct2 = math.unit('8.314 (m^3 Pa) / (mol K)')         // Unit 8.314 (m^3 Pa) / (mol K)
+const correct3 = math.unit('8.314 (m^3 * Pa) / (mol * K)')     // Unit 8.314 (m^3 Pa) / (mol K)
 ```
 But this expression, which omits the second `/` between `mol` and `K`, results in the wrong value:
 
 ```js
 // Missing the second '/' between 'mol' and 'K'
-const incorrect = math.unit('8.314 m^3 Pa / mol K')           // Unit 8.314 (m^3 Pa K) / mol
+const incorrect = math.unit('8.314 m^3 Pa / mol K')            // Unit 8.314 (m^3 Pa K) / mol
 ```
+
+The function `math.unit` has its own small parser. This parser differs a bit from the expression parser `math.evaluate`, and returns the expected result in this case:
+
+```js
+// using math.evaluate instead of math.unit
+const correct4 = math.evaluate('8.314 (m^3 * Pa) / (mol * K)') // Unit 8.314 (m^3 Pa) / (mol K)
+```
+
+In summary: be careful with implicit multiplication. In case of doubt, always use an explicit `*` and parenthesis.
+
 
 ## Calculations
 
@@ -63,7 +79,7 @@ Trigonometric functions like `cos` are also supported when the argument is an an
 ```js
 const a = math.unit(45, 'cm')       // Unit 450 mm
 const b = math.unit('0.1m')         // Unit 100 mm
-math.add(a, b)                      // Unit 0.65 m
+math.add(a, b)                      // Unit 0.55 m
 math.multiply(b, 2)                 // Unit 200 mm
 
 const c = math.unit(45, 'deg')      // Unit 45 deg
@@ -72,7 +88,7 @@ math.cos(c)                         // Number 0.7071067811865476
 // Kinetic energy of average sedan on highway
 const d = math.unit('80 mi/h')      // Unit 80 mi/h
 const e = math.unit('2 tonne')      // Unit 2 tonne
-const f = math.multiply(0.5, math.multipy(math.pow(d, 2), e)) 
+const f = math.multiply(0.5, math.multipy(math.pow(d, 2), e))
                                     // 1.2790064742399996 MJ
 ```
 
@@ -80,27 +96,24 @@ Operations with arrays are supported too:
 
 ```js
 // Force on a charged particle moving through a magnetic field
-const B = math.eval('[1, 0, 0] T')             // [1 T, 0 T, 0 T]
-const v = math.eval('[0, 1, 0] m/s')           // [0 m / s, 1 m / s, 0 m / s]
-const q = math.eval('1 C')                     // 1 C
+const B = math.evaluate('[1, 0, 0] T')         // [1 T, 0 T, 0 T]
+const v = math.evaluate('[0, 1, 0] m/s')       // [0 m / s, 1 m / s, 0 m / s]
+const q = math.evaluate('1 C')                 // 1 C
 
 const F = math.multiply(q, math.cross(v, B))   // [0 N, 0 N, -1 N]
 ```
 
 All arithmetic operators act on the value of the unit as it is represented in SI units.
 This may lead to surprising behavior when working with temperature scales like `celsius` (or `degC`) and `fahrenheit` (or `degF`).
-In general you should avoid calculations using `celsius` and `fahrenheit`. Rather, use `kelvin` (or `K`) and `rankine` (or `R`) instead.
+In general, you should avoid calculations using `celsius` and `fahrenheit`. Rather, use `kelvin` (or `K`) and `rankine` (or `degR`) instead.
 This example highlights some problems when using `celsius` and `fahrenheit` in calculations:
 
 ```js
-const T_14F = math.unit('14 degF')           // Unit 14 degF (263.15 K)
-const T_28F = math.multiply(T1, 2)           // Unit 487.67 degF (526.3 K), not 28 degF
+const T_14F = math.unit('14 degF')            // Unit 14 degF (263.15 K)
+const T_28F = math.multiply(T_14F, 2)         // Unit 28 degF (270.93 K), not 526.3 K
 
-const Tnegative = math.unit(-13, 'degF')     // Unit -13 degF (248.15 K)
-const Tpositive = math.abs(T1)               // Unit -13 degF (248.15 K), not 13 degF
-
-const Trate1 = math.eval('5 (degC/hour)')    // Unit 5 degC/hour
-const Trate2 = math.eval('(5 degC)/hour')    // Unit 278.15 degC/hour
+const Tnegative = math.unit(-13, 'degF')      // Unit -13 degF (248.15 K)
+const Tpositive = math.abs(Tnegative)         // Unit -13 degF (248.15 K), not 13 degF
 ```
 
 The expression parser supports units too. This is described in the section about
@@ -111,16 +124,16 @@ units on the page [Syntax](../expressions/syntax.md#units).
 You can add your own units to Math.js using the `math.createUnit` function. The following example defines a new unit `furlong`, then uses the user-defined unit in a calculation:
 
 ```js
-math.createUnit('furlong', '220 yards') 
-math.eval('1 mile to furlong')             // 8 furlong
+math.createUnit('furlong', '220 yards')
+math.evaluate('1 mile to furlong')            // 8 furlong
 ```
 
-If you cannot express the new unit in terms of any existing unit, then the second argument can be omitted. In this case, a new base unit is created:
+If you cannot express the new unit in terms of any existing unit, then the second argument can be omitted. In this case, a new *base unit* is created:
 
 ```js
 // A 'foo' cannot be expressed in terms of any other unit.
-math.createUnit('foo') 
-math.eval('8 foo * 4 feet')                // 32 foo feet
+math.createUnit('foo')
+math.evaluate('8 foo * 4 feet')               // 32 foo feet
 ```
 
 The second argument to `createUnit` can also be a configuration object consisting of the following properties:
@@ -129,15 +142,17 @@ The second argument to `createUnit` can also be a configuration object consistin
 * **prefixes** A `string` indicating which prefixes math.js should use with the new unit. Possible values are `'none'`, `'short'`, `'long'`, `'binary_short'`, or `'binary_long'`. Default is `'none'`.
 * **offset** A value applied when converting to the unit. This is very helpful for temperature scales that do not share a zero with the absolute temperature scale. For example, if we were defining fahrenheit for the first time, we would use: `math.createUnit('fahrenheit', {definition: '0.555556 kelvin', offset: 459.67})`
 * **aliases** An array of strings to alias the new unit. Example: `math.createUnit('knot', {definition: '0.514444 m/s', aliases: ['knots', 'kt', 'kts']})`
+* **baseName** A `string` that specifies the name of the new dimension in case one needs to be created. Every unit in math.js has a dimension: length, time, velocity, etc. If the unit's `definition` doesn't match any existing dimension, or it is a new base unit, then `createUnit` will create a new dimension with the name `baseName` and assign it to the new unit. The default is to append `'_STUFF'` to the unit's name. If the unit already matches an existing dimension, this option has no effect.
 
 An optional `options` object can also be supplied as the last argument to `createUnits`. Currently only the `override` option is supported:
 
 ```js
 // Redefine the mile (would not be the first time in history)
-math.createUnit('mile', '1609.347218694', {override: true}})
+math.createUnit('mile', '1609.347218694 m', {override: true})
 ```
 Base units created without specifying a definition cannot be overridden.
 
+### Create several units at once
 Multiple units can defined using a single call to `createUnit` by passing an object map as the first argument, where each key in the object is the name of a new unit and the value is either a string defining the unit, or an object with the configuration properties listed above. If the value is an empty string or an object lacking a definition property, a new base unit is created.
 
 For example:
@@ -145,7 +160,8 @@ For example:
 ```js
 math.createUnit( {
   foo: {
-    prefixes: 'long'
+    prefixes: 'long',
+    baseName: 'essence-of-foo'
   },
   bar: '40 foo',
   baz: {
@@ -156,16 +172,56 @@ math.createUnit( {
 {
   override: true
 })
-math.eval('50000 kilofoo/s')   // 4.5 gigabaz
+math.evaluate('50000 kilofoo/s')  // 4.5 gigabaz
 ```
 
 ### Return Value
 `createUnit` returns the created unit, or, when multiple units are created, the last unit created. Since `createUnit` is also compatible with the expression parser, this allows you to do things like this:
 
 ```js
-math.eval('45 mile/hour to createUnit("knot", "0.514444m/s")')
+math.evaluate('45 mile/hour to createUnit("knot", "0.514444m/s")')
 // 39.103964668651976 knot
 ```
+
+### Support of custom characters in unit names
+Per default, the name of a new unit:
+- should start by a latin (A-Z or a-z) character
+- should contain only numeric (0-9) or latin characters
+
+It is possible to allow the usage of special characters (such as Greek alphabet, cyrillic alphabet, any Unicode symbols, etc.) by overriding the `Unit.isValidAlpha` static method. For example:
+```js
+const isAlphaOriginal = math.Unit.isValidAlpha
+const isGreekLowercaseChar = function (c) {
+  const charCode = c.charCodeAt(0)
+  return charCode > 944 && charCode < 970
+}
+math.Unit.isValidAlpha = function (c) {
+  return isAlphaOriginal(c) || isGreekLowercaseChar(c)
+}
+
+math.createUnit('θ', '1 rad')
+math.evaluate('1θ + 3 deg').toNumber('deg') // 60.29577951308232
+```
+
+## Numeric type of the value of a unit
+
+The built-in units are always created with a value being a `number`. To turn the value into for example a `BigNumber` or `Fraction`, you can convert the value using the function `math.fraction` and `math.bignumber`:
+
+```js
+math.unit(math.fraction(10), 'inch').toNumeric('cm')  // Fraction 127/5
+math.fraction(math.unit(10, 'inch')).toNumeric('cm')  // Fraction 127/5
+
+math.bignumber(math.unit(10, 'inch')).toNumeric('cm') // BigNumber 25.4
+math.unit(math.bignumber(10), 'inch').toNumeric('cm') // BigNumber 25.4
+```
+
+When using the expression parser, it is possible to configure numeric values to be parsed as `Fraction` or `BigNumber`:
+
+```js
+math.config({ number: 'Fraction' })
+math.evaluate('10 inch').toNumeric('cm') // Fraction 127/5
+```
+
 
 ## API
 A `Unit` object contains the following functions:
@@ -217,7 +273,7 @@ The type of the returned value is always `number`.
 ### unit.toNumeric(unitName)
 Get the value of a unit when converted to the
 specified unit (a unit with optional prefix but without value).
-The type of the returned value depends on how the unit was created and 
+The type of the returned value depends on how the unit was created and
 can be `number`, `Fraction`, or `BigNumber`.
 
 ### unit.toSI()
@@ -227,9 +283,13 @@ Returns a clone of a unit represented in SI units. Works with units with or with
 Get a string representation of the unit. The function will
 determine the best fitting prefix for the unit.
 
+### unit.valType()
+Get the string name of the current type of the value of this Unit object, e.g.
+'number', 'BigNumber', etc.
+
 ## Unit reference
 
-This section lists all available units, prefixes, and physical constants. These can be used via the Unit object, or via `math.eval()`.
+This section lists all available units, prefixes, and physical constants. These can be used via the Unit object, or via `math.evaluate()`.
 
 ## Reference
 
@@ -240,9 +300,9 @@ Base                | Unit
 Length              | meter (m), inch (in), foot (ft), yard (yd), mile (mi), link (li), rod (rd), chain (ch), angstrom, mil
 Surface area        | m2, sqin, sqft, sqyd, sqmi, sqrd, sqch, sqmil, acre, hectare
 Volume              | m3, litre (l, L, lt, liter), cc, cuin, cuft, cuyd, teaspoon, tablespoon
-Liquid volume       | minim (min), fluiddram (fldr), fluidounce (floz), gill (gi), cup (cp), pint (pt), quart (qt), gallon (gal), beerbarrel (bbl), oilbarrel (obl), hogshead, drop (gtt)
-Angles              | rad (radian), deg (degree), grad (gradian), cycle, arcsec (arcsecond), arcmin (arcminute) 
-Time                | second (s, secs, seconds), minute (mins, minutes), hour (h, hr, hrs, hours), day (days), week (weeks), month (months), year (years), decade (decades), century (centuries), millennium (millennia)
+Liquid volume       | minim, fluiddram (fldr), fluidounce (floz), gill (gi), cup (cp), pint (pt), quart (qt), gallon (gal), beerbarrel (bbl), oilbarrel (obl), hogshead, drop (gtt)
+Angles              | rad (radian), deg (degree), grad (gradian), cycle, arcsec (arcsecond), arcmin (arcminute)
+Time                | second (s, secs, seconds), minute (min, mins, minutes), hour (h, hr, hrs, hours), day (days), week (weeks), month (months), year (years), decade (decades), century (centuries), millennium (millennia)
 Frequency           | hertz (Hz)
 Mass                | gram(g), tonne, ton, grain (gr), dram (dr), ounce (oz), poundmass (lbm, lb, lbs), hundredweight (cwt), stick, stone
 Electric current    | ampere (A)
@@ -254,11 +314,11 @@ Energy              | joule (J), erg, Wh, BTU, electronvolt (eV)
 Power               | watt (W), hp
 Pressure            | Pa, psi, atm, torr, bar, mmHg, mmH2O, cmH2O
 Electricity and magnetism | ampere (A), coulomb (C), watt (W), volt (V), ohm, farad (F), weber (Wb), tesla (T), henry (H), siemens (S), electronvolt (eV)
-Binary              | bit (b), byte (B)
+Binary              | bits (b), bytes (B)
 
 Note: all time units are based on the Julian year, with one month being 1/12th of a Julian year, a year being one Julian year, a decade being 10 Julian years, a century being 100, and a millennium being 1000.
 
-Note that all relevant units can also be written in plural form, for example `5 meters` instead of `5 meter` or `10 seconds` instead of `10 second`. 
+Note that all relevant units can also be written in plural form, for example `5 meters` instead of `5 meter` or `10 seconds` instead of `10 second`.
 
 Surface and volume units can alternatively be expressed in terms of length units raised to a power, for example `100 in^2` instead of `100 sqin`.
 
@@ -278,6 +338,8 @@ peta    | P             | 1e15
 exa     | E             | 1e18
 zetta   | Z             | 1e21
 yotta   | Y             | 1e24
+ronna   | R             | 1e27
+quetta  | Q             | 1e30
 
 Name    | Abbreviation  | Value
 ------  | ------------- | -----
@@ -291,9 +353,11 @@ femto   | f             | 1e-15
 atto    | a             | 1e-18
 zepto   | z             | 1e-21
 yocto   | y             | 1e-24
+ronto   | r             | 1e-27
+quecto  | q             | 1e-30
 
 The following binary prefixes are available.
-They can be used with units `bit` (`b`) and `byte` (`B`).
+They can be used with units `bits` (`b`) and `bytes` (`B`).
 
 Name | Abbreviation | Value
 ---- | ------------ | -----
@@ -320,7 +384,7 @@ yotta | Y            | 1e24
 
 ### Physical Constants
 
-Math.js includes the following physical constants. See [Wikipedia](http://en.wikipedia.org/wiki/Physical_constants) for more information.
+Math.js includes the following physical constants. See [Wikipedia](https://en.wikipedia.org/wiki/Physical_constants) for more information.
 
 
 #### Universal constants
@@ -330,7 +394,7 @@ Name                  | Symbol                                                 |
 speedOfLight          | <i>c</i>                                               | 299792458         | m &#183; s<sup>-1</sup>
 gravitationConstant   | <i>G</i>                                               | 6.6738480e-11     | m<sup>3</sup> &#183; kg<sup>-1</sup> &#183; s<sup>-2</sup>
 planckConstant        | <i>h</i>                                               | 6.626069311e-34   | J &#183; s
-reducedPlanckConstant | <i><span style="text-decoration:overline">h</span></i> | 1.05457172647e-34 | J &#183; s 
+reducedPlanckConstant | <i><span style="text-decoration:overline">h</span></i> | 1.05457172647e-34 | J &#183; s
 
 
 #### Electromagnetic constants
@@ -350,7 +414,7 @@ nuclearMagneton           | <i>&mu;<sub>N</sub></i>                          | 5
 klitzing                  | <i>R<sub>K</sub></i>                             | 25812.807443484       | &ohm;
 
 <!-- TODO: implement josephson
-josephson                 | <i>K<sub>J</sub></i>                             | 4.8359787011e-14    | Hz &#183; V<sup>-1</sup> 
+josephson                 | <i>K<sub>J</sub></i>                             | 4.8359787011e-14    | Hz &#183; V<sup>-1</sup>
 -->
 
 
@@ -392,11 +456,11 @@ secondRadiation     | <i>c<sub>2</sub></i>         | 1.438777013e-2      | m &#1
 stefanBoltzmann     | <i>&sigma;</i>               | 5.67037321e-8       | W &#183; m<sup>-2</sup> &#183; K<sup>-4</sup>
 wienDisplacement    | <i>b</i>                     | 2.897772126e-3      | m &#183; K
 
-<!-- TODO: implement spectralRadiance 
+<!-- TODO: implement spectralRadiance
 spectralRadiance    | <i>c<sub>1L</sub></i>        | 1.19104286953e-16  | W &#183; m<sup>2</sup> &#183; sr<sup>-1</sup>
 -->
 
-Note that the values of `loschmidt` and `molarVolume` are at `T = 273.15 K` and `p = 101.325 kPa`. 
+Note that the values of `loschmidt` and `molarVolume` are at `T = 273.15 K` and `p = 101.325 kPa`.
 The value of `sackurTetrode` is at `T = 1 K` and `p = 101.325 kPa`.
 
 
@@ -415,7 +479,7 @@ atm           | <i>atm</i>                   | 101325  | Pa
 Name              | Symbol                | Value              | Unit
 ------------------|-----------------------|--------------------|-----
 planckLength      | <i>l<sub>P</sub></i>  | 1.61619997e-35     | m
-planckMass        | <i>m<sub>P</sub></i>  | 2.1765113e-8       | kg 
+planckMass        | <i>m<sub>P</sub></i>  | 2.1765113e-8       | kg
 planckTime        | <i>t<sub>P</sub></i>  | 5.3910632e-44      | s
 planckCharge      | <i>q<sub>P</sub></i>  | 1.87554595641e-18  | C
-planckTemperature | <i>T<sub>P</sub></i>  | 1.41683385e+32     | K 
+planckTemperature | <i>T<sub>P</sub></i>  | 1.41683385e+32     | K

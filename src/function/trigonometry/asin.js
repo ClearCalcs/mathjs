@@ -1,12 +1,14 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'asin'
+const dependencies = ['typed', 'config', 'Complex']
 
-function factory (type, config, load, typed) {
+export const createAsin = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, Complex }) => {
   /**
    * Calculate the inverse sine of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matric arcsine, this function does not apply
+   * to matrices.
    *
    * Syntax:
    *
@@ -17,42 +19,30 @@ function factory (type, config, load, typed) {
    *    math.asin(0.5)           // returns number 0.5235987755982989
    *    math.asin(math.sin(1.5)) // returns number ~1.5
    *
-   *    math.asin(2)             // returns Complex 1.5707963267948966 -1.3169578969248166 i
+   *    math.asin(2)             // returns Complex 1.5707963267948966 -1.3169578969248166i
    *
    * See also:
    *
    *    sin, atan, acos
    *
-   * @param {number | BigNumber | Complex | Array | Matrix} x   Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} The arc sine of x
+   * @param {number | BigNumber | Complex} x   Function input
+   * @return {number | BigNumber | Complex} The arc sine of x
    */
-  const asin = typed('asin', {
-    'number': function (x) {
+  return typed(name, {
+    number: function (x) {
       if ((x >= -1 && x <= 1) || config.predictable) {
         return Math.asin(x)
       } else {
-        return new type.Complex(x, 0).asin()
+        return new Complex(x, 0).asin()
       }
     },
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.asin()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.asin()
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since asin(0) = 0
-      return deepMap(x, asin, true)
     }
   })
-
-  asin.toTex = { 1: `\\sin^{-1}\\left(\${args[0]}\\right)` }
-
-  return asin
-}
-
-exports.name = 'asin'
-exports.factory = factory
+})

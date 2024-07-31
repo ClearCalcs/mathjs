@@ -1,9 +1,12 @@
-'use strict'
+import { isChain } from '../../utils/is.js'
+import { format } from '../../utils/string.js'
+import { hasOwnProperty, lazy } from '../../utils/object.js'
+import { factory } from '../../utils/factory.js'
 
-const format = require('../../utils/string').format
-const lazy = require('../../utils/object').lazy
+const name = 'Chain'
+const dependencies = ['?on', 'math', 'typed']
 
-function factory (type, config, load, typed, math) {
+export const createChainClass = /* #__PURE__ */ factory(name, dependencies, ({ on, math, typed }) => {
   /**
    * @constructor Chain
    * Wrap any value in a chain, allowing to perform chained operations on
@@ -27,7 +30,7 @@ function factory (type, config, load, typed, math) {
       throw new SyntaxError('Constructor must be called with the new operator')
     }
 
-    if (type.isChain(value)) {
+    if (isChain(value)) {
       this.value = value.value
     } else {
       this.value = value
@@ -127,11 +130,26 @@ function factory (type, config, load, typed, math) {
    */
   function chainify (fn) {
     return function () {
-      const args = [this.value] // `this` will be the context of a Chain instance
+      // Here, `this` will be the context of a Chain instance
+      if (arguments.length === 0) {
+        return new Chain(fn(this.value))
+      }
+      const args = [this.value]
       for (let i = 0; i < arguments.length; i++) {
         args[i + 1] = arguments[i]
       }
-
+      if (typed.isTypedFunction(fn)) {
+        const sigObject = typed.resolve(fn, args)
+        // We want to detect if a rest parameter has matched across the
+        // value in the chain and the current arguments of this call.
+        // That is the case if and only if the matching signature has
+        // exactly one parameter (which then must be a rest parameter
+        // as it is matching at least two actual arguments).
+        if (sigObject.params.length === 1) {
+          throw new Error('chain function ' + fn.name + ' cannot match rest parameter between chain value and additional arguments.')
+        }
+        return new Chain(sigObject.implementation.apply(fn, args))
+      }
       return new Chain(fn.apply(fn, args))
     }
   }
@@ -156,30 +174,36 @@ function factory (type, config, load, typed, math) {
       createProxy(arg0, arg1)
     } else {
       // createProxy(values)
-      for (const prop in arg0) {
-        if (arg0.hasOwnProperty(prop)) {
-          createProxy(prop, arg0[prop])
+      for (const name in arg0) {
+        if (hasOwnProperty(arg0, name) && excludedNames[name] === undefined) {
+          createLazyProxy(name, () => arg0[name])
         }
       }
     }
+  }
+
+  const excludedNames = {
+    expression: true,
+    docs: true,
+    type: true,
+    classes: true,
+    json: true,
+    error: true,
+    isChain: true // conflicts with the property isChain of a Chain instance
   }
 
   // create proxy for everything that is in math.js
   Chain.createProxy(math)
 
   // register on the import event, automatically add a proxy for every imported function.
-  math.on('import', function (name, resolver, path) {
-    if (path === undefined) {
-      // an imported function (not a data type or something special)
-      createLazyProxy(name, resolver)
-    }
-  })
+  if (on) {
+    on('import', function (name, resolver, path) {
+      if (!path) {
+        // an imported function (not a data type or something special)
+        createLazyProxy(name, resolver)
+      }
+    })
+  }
 
   return Chain
-}
-
-exports.name = 'Chain'
-exports.path = 'type'
-exports.factory = factory
-exports.math = true // require providing the math namespace as 5th argument
-exports.lazy = false // we need to register a listener on the import events, so no lazy loading
+}, { isClass: true })

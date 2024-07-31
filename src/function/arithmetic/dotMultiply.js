@@ -1,15 +1,23 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo02xDS0 } from '../../type/matrix/utils/matAlgo02xDS0.js'
+import { createMatAlgo09xS0Sf } from '../../type/matrix/utils/matAlgo09xS0Sf.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const multiplyScalar = load(require('./multiplyScalar'))
-  const latex = require('../../utils/latex')
+const name = 'dotMultiply'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'multiplyScalar',
+  'concat'
+]
 
-  const algorithm02 = load(require('../../type/matrix/utils/algorithm02'))
-  const algorithm09 = load(require('../../type/matrix/utils/algorithm09'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createDotMultiply = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, multiplyScalar, concat }) => {
+  const matAlgo02xDS0 = createMatAlgo02xDS0({ typed, equalScalar })
+  const matAlgo09xS0Sf = createMatAlgo09xS0Sf({ typed, equalScalar })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Multiply two matrices element wise. The function accepts both matrices and
@@ -37,74 +45,10 @@ function factory (type, config, load, typed) {
    * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} y Right hand value
    * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix}                    Multiplication of `x` and `y`
    */
-  const dotMultiply = typed('dotMultiply', {
-
-    'any, any': multiplyScalar,
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm09(x, y, multiplyScalar, false)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm02(y, x, multiplyScalar, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm02(x, y, multiplyScalar, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, multiplyScalar)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return dotMultiply(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return dotMultiply(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return dotMultiply(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm11(x, y, multiplyScalar, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, multiplyScalar, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm11(y, x, multiplyScalar, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, multiplyScalar, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, multiplyScalar, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, multiplyScalar, true).valueOf()
-    }
-  })
-
-  dotMultiply.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['dotMultiply']}\${args[1]}\\right)`
-  }
-
-  return dotMultiply
-}
-
-exports.name = 'dotMultiply'
-exports.factory = factory
+  return typed(name, matrixAlgorithmSuite({
+    elop: multiplyScalar,
+    SS: matAlgo09xS0Sf,
+    DS: matAlgo02xDS0,
+    Ss: matAlgo11xS0s
+  }))
+})

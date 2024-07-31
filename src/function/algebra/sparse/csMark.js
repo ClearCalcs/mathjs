@@ -1,24 +1,16 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
 
-function factory (type, config, load) {
-  const csFlip = load(require('./csFlip'))
+import { csFlip } from './csFlip.js'
 
-  /**
-   * Marks the node at w[j]
-   *
-   * @param {Array}   w               The array
-   * @param {Number}  j               The array index
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
-   */
-  const csMark = function (w, j) {
-    // mark w[j]
-    w[j] = csFlip(w[j])
-  }
-
-  return csMark
+/**
+ * Marks the node at w[j]
+ *
+ * @param {Array}   w               The array
+ * @param {Number}  j               The array index
+ */
+export function csMark (w, j) {
+  // mark w[j]
+  w[j] = csFlip(w[j])
 }
-
-exports.name = 'csMark'
-exports.path = 'algebra.sparse'
-exports.factory = factory

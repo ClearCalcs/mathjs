@@ -1,12 +1,18 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { secNumber } from '../../plain/number/index.js'
+import { createTrigUnit } from './trigUnit.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'sec'
+const dependencies = ['typed', 'BigNumber']
 
-function factory (type, config, load, typed) {
+export const createSec = /* #__PURE__ */ factory(name, dependencies, ({ typed, BigNumber }) => {
+  const trigUnit = createTrigUnit({ typed })
+
   /**
    * Calculate the secant of a value, defined as `sec(x) = 1/cos(x)`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix secant, this function does not
+   * apply to matrices.
    *
    * Syntax:
    *
@@ -21,38 +27,12 @@ function factory (type, config, load, typed) {
    *
    *    cos, csc, cot
    *
-   * @param {number | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | Complex | Array | Matrix} Secant of x
+   * @param {number | BigNumber | Complex | Unit} x  Function input
+   * @return {number | BigNumber | Complex} Secant of x
    */
-  const sec = typed('sec', {
-    'number': function (x) {
-      return 1 / Math.cos(x)
-    },
-
-    'Complex': function (x) {
-      return x.sec()
-    },
-
-    'BigNumber': function (x) {
-      return new type.BigNumber(1).div(x.cos())
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function sec is no angle')
-      }
-      return sec(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, sec)
-    }
-  })
-
-  sec.toTex = { 1: `\\sec\\left(\${args[0]}\\right)` }
-
-  return sec
-}
-
-exports.name = 'sec'
-exports.factory = factory
+  return typed(name, {
+    number: secNumber,
+    Complex: x => x.sec(),
+    BigNumber: x => new BigNumber(1).div(x.cos())
+  }, trigUnit)
+})

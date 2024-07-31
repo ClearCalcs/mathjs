@@ -1,35 +1,31 @@
-'use strict'
+import { isArray, isBigNumber, isCollection, isIndex, isMatrix, isNumber, isString, typeOf } from '../../utils/is.js'
+import { isInteger } from '../../utils/number.js'
+import { format } from '../../utils/string.js'
+import { clone, deepStrictEqual } from '../../utils/object.js'
+import { arraySize, getArrayDataType, processSizesWildcard, unsqueeze, validateIndex } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
+import { DimensionError } from '../../error/DimensionError.js'
+import { maxArgumentCount } from '../../utils/function.js'
 
-const util = require('../../utils/index')
-const DimensionError = require('../../error/DimensionError')
+const name = 'SparseMatrix'
+const dependencies = [
+  'typed',
+  'equalScalar',
+  'Matrix'
+]
 
-const array = util.array
-const object = util.object
-const string = util.string
-const number = util.number
-
-const isArray = Array.isArray
-const isNumber = number.isNumber
-const isInteger = number.isInteger
-const isString = string.isString
-
-const validateIndex = array.validateIndex
-
-function factory (type, config, load, typed) {
-  const Matrix = load(require('./Matrix')) // force loading Matrix (do not use via type.Matrix)
-  const equalScalar = load(require('../../function/relational/equalScalar'))
-  const getArrayDataType = load(require('./utils/getArrayDataType'))
-
+export const createSparseMatrixClass = /* #__PURE__ */ factory(name, dependencies, ({ typed, equalScalar, Matrix }) => {
   /**
-   * Sparse Matrix implementation. This type implements a Compressed Column Storage format
-   * for sparse matrices.
+   * Sparse Matrix implementation. This type implements
+   * a [Compressed Column Storage](https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS))
+   * format for two-dimensional sparse matrices.
    * @class SparseMatrix
    */
   function SparseMatrix (data, datatype) {
     if (!(this instanceof SparseMatrix)) { throw new SyntaxError('Constructor must be called with the new operator') }
     if (datatype && !isString(datatype)) { throw new Error('Invalid datatype: ' + datatype) }
 
-    if (type.isMatrix(data)) {
+    if (isMatrix(data)) {
       // create from matrix
       _createFromMatrix(this, data, datatype)
     } else if (data && isArray(data.index) && isArray(data.ptr) && isArray(data.size)) {
@@ -44,7 +40,7 @@ function factory (type, config, load, typed) {
       _createFromArray(this, data, datatype)
     } else if (data) {
       // unsupported type
-      throw new TypeError('Unsupported type of data (' + util.types.type(data) + ')')
+      throw new TypeError('Unsupported type of data (' + typeOf(data) + ')')
     } else {
       // nothing provided
       this._values = []
@@ -59,10 +55,10 @@ function factory (type, config, load, typed) {
     // check matrix type
     if (source.type === 'SparseMatrix') {
       // clone arrays
-      matrix._values = source._values ? object.clone(source._values) : undefined
-      matrix._index = object.clone(source._index)
-      matrix._ptr = object.clone(source._ptr)
-      matrix._size = object.clone(source._size)
+      matrix._values = source._values ? clone(source._values) : undefined
+      matrix._index = clone(source._index)
+      matrix._ptr = clone(source._ptr)
+      matrix._size = clone(source._size)
       matrix._datatype = datatype || source._datatype
     } else {
       // build from matrix data
@@ -145,8 +141,17 @@ function factory (type, config, load, typed) {
   SparseMatrix.prototype = new Matrix()
 
   /**
+   * Create a new SparseMatrix
+   */
+  SparseMatrix.prototype.createSparseMatrix = function (data, datatype) {
+    return new SparseMatrix(data, datatype)
+  }
+
+  /**
    * Attach type information
    */
+  Object.defineProperty(SparseMatrix, 'name', { value: 'SparseMatrix' })
+  SparseMatrix.prototype.constructor = SparseMatrix
   SparseMatrix.prototype.type = 'SparseMatrix'
   SparseMatrix.prototype.isSparseMatrix = true
 
@@ -160,7 +165,7 @@ function factory (type, config, load, typed) {
    * @return {string}   type information; if multiple types are found from the Matrix, it will return "mixed"
    */
   SparseMatrix.prototype.getDataType = function () {
-    return getArrayDataType(this._values)
+    return getArrayDataType(this._values, typeOf)
   }
 
   /**
@@ -225,7 +230,7 @@ function factory (type, config, load, typed) {
    *
    * @memberof SparseMatrix
    * @param {Index} index
-   * @param {Array | Maytrix | *} [replacement]
+   * @param {Array | Matrix | *} [replacement]
    * @param {*} [defaultValue=0]      Default value, filled in on new entries when
    *                                  the matrix is resized. If not provided,
    *                                  new matrix elements will be filled with zeros.
@@ -238,7 +243,7 @@ function factory (type, config, load, typed) {
       case 1:
         return _getsubset(this, index)
 
-        // intentional fall through
+      // intentional fall through
       case 2:
       case 3:
         return _setsubset(this, index, replacement, defaultValue)
@@ -250,7 +255,7 @@ function factory (type, config, load, typed) {
 
   function _getsubset (matrix, idx) {
     // check idx
-    if (!type.isIndex(idx)) {
+    if (!isIndex(idx)) {
       throw new TypeError('Invalid index')
     }
 
@@ -324,10 +329,10 @@ function factory (type, config, load, typed) {
 
     // return matrix
     return new SparseMatrix({
-      values: values,
-      index: index,
-      ptr: ptr,
-      size: size,
+      values,
+      index,
+      ptr,
+      size,
       datatype: matrix._datatype
     })
   }
@@ -344,14 +349,14 @@ function factory (type, config, load, typed) {
 
     // calculate the size of the submatrix, and convert it into an Array if needed
     let sSize
-    if (type.isMatrix(submatrix)) {
+    if (isMatrix(submatrix)) {
       // submatrix size
       sSize = submatrix.size()
       // use array representation
       submatrix = submatrix.toArray()
     } else {
       // get submatrix size (array, scalar)
-      sSize = array.size(submatrix)
+      sSize = arraySize(submatrix)
     }
 
     // check index is a scalar
@@ -381,31 +386,33 @@ function factory (type, config, load, typed) {
           i++
         }
         // unsqueeze both outer and inner dimensions
-        submatrix = array.unsqueeze(submatrix, iSize.length, outer, sSize)
+        submatrix = unsqueeze(submatrix, iSize.length, outer, sSize)
       }
 
       // check whether the size of the submatrix matches the index size
-      if (!object.deepEqual(iSize, sSize)) {
+      if (!deepStrictEqual(iSize, sSize)) {
         throw new DimensionError(iSize, sSize, '>')
       }
 
-      // offsets
-      const x0 = index.min()[0]
-      const y0 = index.min()[1]
-
-      // submatrix rows and columns
-      const m = sSize[0]
-      const n = sSize[1]
-
-      // loop submatrix
-      for (let x = 0; x < m; x++) {
-        // loop columns
-        for (let y = 0; y < n; y++) {
-          // value at i, j
-          const v = submatrix[x][y]
-          // invoke set (zero value will remove entry from matrix)
-          matrix.set([x + x0, y + y0], v, defaultValue)
-        }
+      // insert the sub matrix
+      if (iSize.length === 1) {
+        // if the replacement index only has 1 dimension, go trough each one and set its value
+        const range = index.dimension(0)
+        range.forEach(function (dataIndex, subIndex) {
+          validateIndex(dataIndex)
+          matrix.set([dataIndex, 0], submatrix[subIndex[0]], defaultValue)
+        })
+      } else {
+        // if the replacement index has 2 dimensions, go through each one and set the value in the correct index
+        const firstDimensionRange = index.dimension(0)
+        const secondDimensionRange = index.dimension(1)
+        firstDimensionRange.forEach(function (firstDataIndex, firstSubIndex) {
+          validateIndex(firstDataIndex)
+          secondDimensionRange.forEach(function (secondDataIndex, secondSubIndex) {
+            validateIndex(secondDataIndex)
+            matrix.set([firstDataIndex, secondDataIndex], submatrix[firstSubIndex[0]][secondSubIndex[0]], defaultValue)
+          })
+        })
       }
     }
     return matrix
@@ -444,7 +451,7 @@ function factory (type, config, load, typed) {
    * Replace a single element in the matrix.
    * @memberof SparseMatrix
    * @param {number[]} index   Zero-based index
-   * @param {*} value
+   * @param {*} v
    * @param {*} [defaultValue]        Default value, filled in on new entries when
    *                                  the matrix is resized. If not provided,
    *                                  new matrix elements will be set to zero.
@@ -503,8 +510,10 @@ function factory (type, config, load, typed) {
         _remove(k, j, this._values, this._index, this._ptr)
       }
     } else {
-      // insert value @ (i, j)
-      _insert(k, i, j, v, this._values, this._index, this._ptr)
+      if (!eq(v, zero)) {
+        // insert value @ (i, j)
+        _insert(k, i, j, v, this._values, this._index, this._ptr)
+      }
     }
 
     return this
@@ -544,7 +553,9 @@ function factory (type, config, load, typed) {
    * `copy=true`, otherwise return the matrix itself (resize in place).
    *
    * @memberof SparseMatrix
-   * @param {number[]} size           The new size the matrix should have.
+   * @param {number[] | Matrix} size  The new size the matrix should have.
+   *                                  Since sparse matrices are always two-dimensional,
+   *                                  size must be two numbers in either an array or a matrix
    * @param {*} [defaultValue=0]      Default value, filled in on new entries.
    *                                  If not provided, the matrix elements will
    *                                  be filled with zeros.
@@ -554,21 +565,31 @@ function factory (type, config, load, typed) {
    */
   SparseMatrix.prototype.resize = function (size, defaultValue, copy) {
     // validate arguments
-    if (!isArray(size)) { throw new TypeError('Array expected') }
-    if (size.length !== 2) { throw new Error('Only two dimensions matrix are supported') }
+    if (!isCollection(size)) {
+      throw new TypeError('Array or Matrix expected')
+    }
+
+    // SparseMatrix input is always 2d, flatten this into 1d if it's indeed a vector
+    const sizeArray = size.valueOf().map(value => {
+      return Array.isArray(value) && value.length === 1
+        ? value[0]
+        : value
+    })
+
+    if (sizeArray.length !== 2) { throw new Error('Only two dimensions matrix are supported') }
 
     // check sizes
-    size.forEach(function (value) {
-      if (!number.isNumber(value) || !number.isInteger(value) || value < 0) {
+    sizeArray.forEach(function (value) {
+      if (!isNumber(value) || !isInteger(value) || value < 0) {
         throw new TypeError('Invalid size, must contain positive integers ' +
-                            '(size: ' + string.format(size) + ')')
+          '(size: ' + format(sizeArray) + ')')
       }
     })
 
     // matrix to resize
     const m = copy ? this.clone() : this
     // resize matrix
-    return _resize(m, size[0], size[1], defaultValue)
+    return _resize(m, sizeArray[0], sizeArray[1], defaultValue)
   }
 
   function _resize (matrix, rows, columns, defaultValue) {
@@ -698,26 +719,32 @@ function factory (type, config, load, typed) {
    *       resize().
    *
    * @memberof SparseMatrix
-   * @param {number[]} size           The new size the matrix should have.
+   * @param {number[]} sizes          The new size the matrix should have.
+   *                                  Since sparse matrices are always two-dimensional,
+   *                                  size must be two numbers in either an array or a matrix
    * @param {boolean} [copy]          Return a reshaped copy of the matrix
    *
    * @return {Matrix}                 The reshaped matrix
    */
-  SparseMatrix.prototype.reshape = function (size, copy) {
+  SparseMatrix.prototype.reshape = function (sizes, copy) {
     // validate arguments
-    if (!isArray(size)) { throw new TypeError('Array expected') }
-    if (size.length !== 2) { throw new Error('Sparse matrices can only be reshaped in two dimensions') }
+    if (!isArray(sizes)) { throw new TypeError('Array expected') }
+    if (sizes.length !== 2) { throw new Error('Sparse matrices can only be reshaped in two dimensions') }
 
     // check sizes
-    size.forEach(function (value) {
-      if (!number.isNumber(value) || !number.isInteger(value) || value < 0) {
-        throw new TypeError('Invalid size, must contain positive integers ' +
-                            '(size: ' + string.format(size) + ')')
+    sizes.forEach(function (value) {
+      if (!isNumber(value) || !isInteger(value) || value <= -2 || value === 0) {
+        throw new TypeError('Invalid size, must contain positive integers or -1 ' +
+          '(size: ' + format(sizes) + ')')
       }
     })
 
+    const currentLength = this._size[0] * this._size[1]
+    sizes = processSizesWildcard(sizes, currentLength)
+    const newLength = sizes[0] * sizes[1]
+
     // m * n must not change
-    if (this._size[0] * this._size[1] !== size[0] * size[1]) {
+    if (currentLength !== newLength) {
       throw new Error('Reshaping sparse matrix will result in the wrong number of elements')
     }
 
@@ -725,7 +752,7 @@ function factory (type, config, load, typed) {
     const m = copy ? this.clone() : this
 
     // return unchanged if the same shape
-    if (this._size[0] === size[0] && this._size[1] === size[1]) {
+    if (this._size[0] === sizes[0] && this._size[1] === sizes[1]) {
       return m
     }
 
@@ -748,8 +775,8 @@ function factory (type, config, load, typed) {
       const r1 = rowIndex[i]
       const c1 = colIndex[i]
       const flat = r1 * m._size[1] + c1
-      colIndex[i] = flat % size[1]
-      rowIndex[i] = Math.floor(flat / size[1])
+      colIndex[i] = flat % sizes[1]
+      rowIndex[i] = Math.floor(flat / sizes[1])
     }
 
     // Now reshaping is supposed to preserve the row-major order, BUT these sparse matrices are stored
@@ -761,8 +788,8 @@ function factory (type, config, load, typed) {
     // 1. Remove all values from the matrix
     m._values.length = 0
     m._index.length = 0
-    m._ptr.length = size[1] + 1
-    m._size = size.slice()
+    m._ptr.length = sizes[1] + 1
+    m._size = sizes.slice()
     for (let i = 0; i < m._ptr.length; i++) {
       m._ptr[i] = 0
     }
@@ -789,10 +816,10 @@ function factory (type, config, load, typed) {
    */
   SparseMatrix.prototype.clone = function () {
     const m = new SparseMatrix({
-      values: this._values ? object.clone(this._values) : undefined,
-      index: object.clone(this._index),
-      ptr: object.clone(this._ptr),
-      size: object.clone(this._size),
+      values: this._values ? clone(this._values) : undefined,
+      index: clone(this._index),
+      ptr: clone(this._ptr),
+      size: clone(this._size),
       datatype: this._datatype
     })
     return m
@@ -827,8 +854,11 @@ function factory (type, config, load, typed) {
     const rows = this._size[0]
     const columns = this._size[1]
     // invoke callback
+    const args = maxArgumentCount(callback)
     const invoke = function (v, i, j) {
       // invoke callback
+      if (args === 1) return callback(v)
+      if (args === 2) return callback(v, [i, j])
       return callback(v, [i, j], me)
     }
     // invoke _map
@@ -876,36 +906,42 @@ function factory (type, config, load, typed) {
       // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
       const k0 = matrix._ptr[j]
       const k1 = matrix._ptr[j + 1]
-      // row pointer
-      let p = minRow
-      // loop k within [k0, k1[
-      for (let k = k0; k < k1; k++) {
-        // row index
-        const i = matrix._index[k]
-        // check i is in range
-        if (i >= minRow && i <= maxRow) {
-          // zero values
-          if (!skipZeros) {
-            for (let x = p; x < i; x++) { invoke(0, x - minRow, j - minColumn) }
+
+      if (skipZeros) {
+        // loop k within [k0, k1[
+        for (let k = k0; k < k1; k++) {
+          // row index
+          const i = matrix._index[k]
+          // check i is in range
+          if (i >= minRow && i <= maxRow) {
+            // value @ k
+            invoke(matrix._values[k], i - minRow, j - minColumn)
           }
-          // value @ k
-          invoke(matrix._values[k], i - minRow, j - minColumn)
         }
-        // update pointer
-        p = i + 1
-      }
-      // zero values
-      if (!skipZeros) {
-        for (let y = p; y <= maxRow; y++) { invoke(0, y - minRow, j - minColumn) }
+      } else {
+        // create a cache holding all defined values
+        const values = {}
+        for (let k = k0; k < k1; k++) {
+          const i = matrix._index[k]
+          values[i] = matrix._values[k]
+        }
+
+        // loop over all rows (indexes can be unordered so we can't use that),
+        // and either read the value or zero
+        for (let i = minRow; i <= maxRow; i++) {
+          const value = (i in values) ? values[i] : 0
+          invoke(value, i - minRow, j - minColumn)
+        }
       }
     }
+
     // store number of values in ptr
     ptr.push(values.length)
     // return sparse matrix
     return new SparseMatrix({
-      values: values,
-      index: index,
-      ptr: ptr,
+      values,
+      index,
+      ptr,
       size: [maxRow - minRow + 1, maxColumn - minColumn + 1]
     })
   }
@@ -917,6 +953,8 @@ function factory (type, config, load, typed) {
    *                              parameters: the value of the element, the index
    *                              of the element, and the Matrix being traversed.
    * @param {boolean} [skipZeros] Invoke callback function for non-zero values only.
+   *                              If false, the indices are guaranteed to be in order,
+   *                              if true, the indices can be unordered.
    */
   SparseMatrix.prototype.forEach = function (callback, skipZeros) {
     // check it is a pattern matrix
@@ -931,26 +969,52 @@ function factory (type, config, load, typed) {
       // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
       const k0 = this._ptr[j]
       const k1 = this._ptr[j + 1]
-      // column pointer
-      let p = 0
-      // loop k within [k0, k1[
+
+      if (skipZeros) {
+        // loop k within [k0, k1[
+        for (let k = k0; k < k1; k++) {
+          // row index
+          const i = this._index[k]
+
+          // value @ k
+          callback(this._values[k], [i, j], me)
+        }
+      } else {
+        // create a cache holding all defined values
+        const values = {}
+        for (let k = k0; k < k1; k++) {
+          const i = this._index[k]
+          values[i] = this._values[k]
+        }
+
+        // loop over all rows (indexes can be unordered so we can't use that),
+        // and either read the value or zero
+        for (let i = 0; i < rows; i++) {
+          const value = (i in values) ? values[i] : 0
+          callback(value, [i, j], me)
+        }
+      }
+    }
+  }
+
+  /**
+   * Iterate over the matrix elements, skipping zeros
+   * @return {Iterable<{ value, index: number[] }>}
+   */
+  SparseMatrix.prototype[Symbol.iterator] = function * () {
+    if (!this._values) { throw new Error('Cannot iterate a Pattern only matrix') }
+
+    const columns = this._size[1]
+
+    for (let j = 0; j < columns; j++) {
+      const k0 = this._ptr[j]
+      const k1 = this._ptr[j + 1]
+
       for (let k = k0; k < k1; k++) {
         // row index
         const i = this._index[k]
-        // check we need to process zeros
-        if (!skipZeros) {
-          // zero values
-          for (let x = p; x < i; x++) { callback(0, [x, j], me) } // eslint-disable-line standard/no-callback-literal
-        }
-        // value @ k
-        callback(this._values[k], [i, j], me)
-        // update pointer
-        p = i + 1
-      }
-      // check we need to process zeros
-      if (!skipZeros) {
-        // zero values
-        for (let y = p; y < rows; y++) { callback(0, [y, j], me) } // eslint-disable-line standard/no-callback-literal
+
+        yield ({ value: this._values[k], index: [i, j] })
       }
     }
   }
@@ -997,7 +1061,7 @@ function factory (type, config, load, typed) {
         // row index
         i = index[k]
         // set value (use one for pattern matrix)
-        a[i][j] = values ? (copy ? object.clone(values[k]) : values[k]) : 1
+        a[i][j] = values ? (copy ? clone(values[k]) : values[k]) : 1
       }
     }
     return a
@@ -1019,7 +1083,7 @@ function factory (type, config, load, typed) {
     // density
     const density = this.density()
     // rows & columns
-    let str = 'Sparse Matrix [' + string.format(rows, options) + ' x ' + string.format(columns, options) + '] density: ' + string.format(density, options) + '\n'
+    let str = 'Sparse Matrix [' + format(rows, options) + ' x ' + format(columns, options) + '] density: ' + format(density, options) + '\n'
     // loop columns
     for (let j = 0; j < columns; j++) {
       // k0 <= k < k1 where k0 = _ptr[j] && k1 = _ptr[j+1]
@@ -1030,7 +1094,7 @@ function factory (type, config, load, typed) {
         // row index
         const i = this._index[k]
         // append value
-        str += '\n    (' + string.format(i, options) + ', ' + string.format(j, options) + ') ==> ' + (this._values ? string.format(this._values[k], options) : 'X')
+        str += '\n    (' + format(i, options) + ', ' + format(j, options) + ') ==> ' + (this._values ? format(this._values[k], options) : 'X')
       }
     }
     return str
@@ -1042,7 +1106,7 @@ function factory (type, config, load, typed) {
    * @returns {string} str
    */
   SparseMatrix.prototype.toString = function () {
-    return string.format(this.toArray())
+    return format(this.toArray())
   }
 
   /**
@@ -1073,7 +1137,7 @@ function factory (type, config, load, typed) {
     // validate k if any
     if (k) {
       // convert BigNumber to a number
-      if (type.isBigNumber(k)) { k = k.toNumber() }
+      if (isBigNumber(k)) { k = k.toNumber() }
       // is must be an integer
       if (!isNumber(k) || !isInteger(k)) {
         throw new TypeError('The parameter k must be an integer number')
@@ -1123,9 +1187,9 @@ function factory (type, config, load, typed) {
     ptr.push(values.length)
     // return matrix
     return new SparseMatrix({
-      values: values,
-      index: index,
-      ptr: ptr,
+      values,
+      index,
+      ptr,
       size: [n, 1]
     })
   }
@@ -1149,6 +1213,7 @@ function factory (type, config, load, typed) {
    * @param {Array} size                       The matrix size.
    * @param {number | Array | Matrix } value   The values for the diagonal.
    * @param {number | BigNumber} [k=0]         The kth diagonal where the vector will be filled in.
+   * @param {number} [defaultValue]            The default value for non-diagonal
    * @param {string} [datatype]                The Matrix datatype, values must be of this datatype.
    *
    * @returns {SparseMatrix}
@@ -1160,7 +1225,7 @@ function factory (type, config, load, typed) {
     // map size & validate
     size = size.map(function (s) {
       // check it is a big number
-      if (type.isBigNumber(s)) {
+      if (isBigNumber(s)) {
         // convert it
         s = s.toNumber()
       }
@@ -1174,7 +1239,7 @@ function factory (type, config, load, typed) {
     // validate k if any
     if (k) {
       // convert BigNumber to a number
-      if (type.isBigNumber(k)) { k = k.toNumber() }
+      if (isBigNumber(k)) { k = k.toNumber() }
       // is must be an integer
       if (!isNumber(k) || !isInteger(k)) {
         throw new TypeError('The parameter k must be an integer number')
@@ -1221,7 +1286,7 @@ function factory (type, config, load, typed) {
         // return value @ i
         return value[i]
       }
-    } else if (type.isMatrix(value)) {
+    } else if (isMatrix(value)) {
       // matrix size
       const ms = value.size()
       // validate matrix
@@ -1270,9 +1335,9 @@ function factory (type, config, load, typed) {
     ptr.push(values.length)
     // create SparseMatrix
     return new SparseMatrix({
-      values: values,
-      index: index,
-      ptr: ptr,
+      values,
+      index,
+      ptr,
       size: [rows, columns]
     })
   }
@@ -1383,13 +1448,5 @@ function factory (type, config, load, typed) {
     }
   }
 
-  // register this type in the base class Matrix
-  type.Matrix._storage.sparse = SparseMatrix
-
   return SparseMatrix
-}
-
-exports.name = 'SparseMatrix'
-exports.path = 'type'
-exports.factory = factory
-exports.lazy = false // no lazy loading, as we alter type.Matrix._storage
+}, { isClass: true })

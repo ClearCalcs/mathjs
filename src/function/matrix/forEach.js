@@ -1,9 +1,11 @@
-'use strict'
+import { applyCallback } from '../../utils/applyCallback.js'
+import { forEach as forEachArray } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const maxArgumentCount = require('../../utils/function').maxArgumentCount
-const forEach = require('../../utils/array').forEach
+const name = 'forEach'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createForEach = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Iterate over all elements of a matrix/array, and executes the given callback function.
    *
@@ -27,48 +29,32 @@ function factory (type, config, load, typed) {
    *                              parameters: the value of the element, the index
    *                              of the element, and the Matrix/array being traversed.
    */
-  const forEach = typed('forEach', {
+  return typed(name, {
     'Array, function': _forEach,
 
     'Matrix, function': function (x, callback) {
-      return x.forEach(callback)
+      x.forEach(callback)
     }
   })
-
-  forEach.toTex = undefined // use default template
-
-  return forEach
-}
+})
 
 /**
- * forEach for a multi dimensional array
+ * forEach for a multidimensional array
  * @param {Array} array
  * @param {Function} callback
  * @private
  */
 function _forEach (array, callback) {
-  // figure out what number of arguments the callback function expects
-  const args = maxArgumentCount(callback)
-
   const recurse = function (value, index) {
     if (Array.isArray(value)) {
-      forEach(value, function (child, i) {
+      forEachArray(value, function (child, i) {
         // we create a copy of the index array and append the new index value
         recurse(child, index.concat(i))
       })
     } else {
       // invoke the callback function with the right number of arguments
-      if (args === 1) {
-        callback(value)
-      } else if (args === 2) {
-        callback(value, index)
-      } else { // 3 or -1
-        callback(value, index, array)
-      }
+      return applyCallback(callback, value, index, array, 'forEach')
     }
   }
   recurse(array, [])
 }
-
-exports.name = 'forEach'
-exports.factory = factory

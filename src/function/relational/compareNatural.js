@@ -1,11 +1,14 @@
-'use strict'
+import naturalSort from 'javascript-natural-sort'
+import { isDenseMatrix, isSparseMatrix, typeOf } from '../../utils/is.js'
+import { factory } from '../../utils/factory.js'
 
-const naturalSort = require('javascript-natural-sort')
+const name = 'compareNatural'
+const dependencies = [
+  'typed',
+  'compare'
+]
 
-function factory (type, config, load, typed) {
-  const getTypeOf = load(require('../utils/typeof'))
-  const compare = load(require('./compare'))
-
+export const createCompareNatural = /* #__PURE__ */ factory(name, dependencies, ({ typed, compare }) => {
   const compareBooleans = compare.signatures['boolean,boolean']
 
   /**
@@ -16,7 +19,7 @@ function factory (type, config, load, typed) {
    * the function compares in a natural way.
    *
    * For numeric values, x and y are considered equal when the relative
-   * difference between x and y is smaller than the configured epsilon.
+   * difference between x and y is smaller than the configured relTol and absTol.
    * The function cannot be used to compare values smaller than
    * approximately 2.22e-16.
    *
@@ -76,79 +79,77 @@ function factory (type, config, load, typed) {
    * @return {number} Returns the result of the comparison:
    *                  1 when x > y, -1 when x < y, and 0 when x == y.
    */
-  const compareNatural = typed('compareNatural', {
-    'any, any': function (x, y) {
-      const typeX = getTypeOf(x)
-      const typeY = getTypeOf(y)
-      let c
+  return typed(name, { 'any, any': _compareNatural }) // just to check # args
 
-      // numeric types
-      if ((typeX === 'number' || typeX === 'BigNumber' || typeX === 'Fraction') &&
-          (typeY === 'number' || typeY === 'BigNumber' || typeY === 'Fraction')) {
-        c = compare(x, y)
-        if (c.toString() !== '0') {
-          // c can be number, BigNumber, or Fraction
-          return c > 0 ? 1 : -1 // return a number
-        } else {
-          return naturalSort(typeX, typeY)
-        }
-      }
+  function _compareNatural (x, y) {
+    const typeX = typeOf(x)
+    const typeY = typeOf(y)
+    let c
 
-      // matrix types
-      if (typeX === 'Array' || typeX === 'Matrix' ||
-          typeY === 'Array' || typeY === 'Matrix') {
-        c = compareMatricesAndArrays(x, y)
-        if (c !== 0) {
-          return c
-        } else {
-          return naturalSort(typeX, typeY)
-        }
-      }
-
-      // in case of different types, order by name of type, i.e. 'BigNumber' < 'Complex'
-      if (typeX !== typeY) {
+    // numeric types
+    if ((typeX === 'number' || typeX === 'BigNumber' || typeX === 'Fraction') &&
+        (typeY === 'number' || typeY === 'BigNumber' || typeY === 'Fraction')) {
+      c = compare(x, y)
+      if (c.toString() !== '0') {
+        // c can be number, BigNumber, or Fraction
+        return c > 0 ? 1 : -1 // return a number
+      } else {
         return naturalSort(typeX, typeY)
       }
-
-      if (typeX === 'Complex') {
-        return compareComplexNumbers(x, y)
-      }
-
-      if (typeX === 'Unit') {
-        if (x.equalBase(y)) {
-          return compareNatural(x.value, y.value)
-        }
-
-        // compare by units
-        return compareArrays(x.formatUnits(), y.formatUnits())
-      }
-
-      if (typeX === 'boolean') {
-        return compareBooleans(x, y)
-      }
-
-      if (typeX === 'string') {
-        return naturalSort(x, y)
-      }
-
-      if (typeX === 'Object') {
-        return compareObjects(x, y)
-      }
-
-      if (typeX === 'null') {
-        return 0
-      }
-
-      if (typeX === 'undefined') {
-        return 0
-      }
-
-      // this should not occur...
-      throw new TypeError('Unsupported type of value "' + typeX + '"')
     }
-  })
 
-  compareNatural.toTex = undefined // use default template
+    // matrix types
+    const matTypes = ['Array', 'DenseMatrix', 'SparseMatrix']
+    if (matTypes.includes(typeX) || matTypes.includes(typeY)) {
+      c = compareMatricesAndArrays(_compareNatural, x, y)
+      if (c !== 0) {
+        return c
+      } else {
+        return naturalSort(typeX, typeY)
+      }
+    }
+
+    // in case of different types, order by name of type, i.e. 'BigNumber' < 'Complex'
+    if (typeX !== typeY) {
+      return naturalSort(typeX, typeY)
+    }
+
+    if (typeX === 'Complex') {
+      return compareComplexNumbers(x, y)
+    }
+
+    if (typeX === 'Unit') {
+      if (x.equalBase(y)) {
+        return _compareNatural(x.value, y.value)
+      }
+
+      // compare by units
+      return compareArrays(_compareNatural, x.formatUnits(), y.formatUnits())
+    }
+
+    if (typeX === 'boolean') {
+      return compareBooleans(x, y)
+    }
+
+    if (typeX === 'string') {
+      return naturalSort(x, y)
+    }
+
+    if (typeX === 'Object') {
+      return compareObjects(_compareNatural, x, y)
+    }
+
+    if (typeX === 'null') {
+      return 0
+    }
+
+    if (typeX === 'undefined') {
+      return 0
+    }
+
+    // this should not occur...
+    throw new TypeError('Unsupported type of value "' + typeX + '"')
+  }
 
   /**
    * Compare mixed matrix/array types, by converting to same-shaped array.
@@ -157,36 +158,36 @@ function factory (type, config, load, typed) {
    * @param {Array | SparseMatrix | DenseMatrix | *} y
    * @returns {number} Returns the comparison result: -1, 0, or 1
    */
-  function compareMatricesAndArrays (x, y) {
-    if (type.isSparseMatrix(x) && type.isSparseMatrix(y)) {
-      return compareArrays(x.toJSON().values, y.toJSON().values)
+  function compareMatricesAndArrays (compareNatural, x, y) {
+    if (isSparseMatrix(x) && isSparseMatrix(y)) {
+      return compareArrays(compareNatural, x.toJSON().values, y.toJSON().values)
     }
-    if (type.isSparseMatrix(x)) {
+    if (isSparseMatrix(x)) {
       // note: convert to array is expensive
-      return compareMatricesAndArrays(x.toArray(), y)
+      return compareMatricesAndArrays(compareNatural, x.toArray(), y)
     }
-    if (type.isSparseMatrix(y)) {
+    if (isSparseMatrix(y)) {
       // note: convert to array is expensive
-      return compareMatricesAndArrays(x, y.toArray())
+      return compareMatricesAndArrays(compareNatural, x, y.toArray())
     }
 
     // convert DenseArray into Array
-    if (type.isDenseMatrix(x)) {
-      return compareMatricesAndArrays(x.toJSON().data, y)
+    if (isDenseMatrix(x)) {
+      return compareMatricesAndArrays(compareNatural, x.toJSON().data, y)
     }
-    if (type.isDenseMatrix(y)) {
-      return compareMatricesAndArrays(x, y.toJSON().data)
+    if (isDenseMatrix(y)) {
+      return compareMatricesAndArrays(compareNatural, x, y.toJSON().data)
     }
 
     // convert scalars to array
     if (!Array.isArray(x)) {
-      return compareMatricesAndArrays([x], y)
+      return compareMatricesAndArrays(compareNatural, [x], y)
     }
     if (!Array.isArray(y)) {
-      return compareMatricesAndArrays(x, [y])
+      return compareMatricesAndArrays(compareNatural, x, [y])
     }
 
-    return compareArrays(x, y)
+    return compareArrays(compareNatural, x, y)
   }
 
   /**
@@ -200,7 +201,7 @@ function factory (type, config, load, typed) {
    * @param {Array} y
    * @returns {number} Returns the comparison result: -1, 0, or 1
    */
-  function compareArrays (x, y) {
+  function compareArrays (compareNatural, x, y) {
     // compare each value
     for (let i = 0, ii = Math.min(x.length, y.length); i < ii; i++) {
       const v = compareNatural(x[i], y[i])
@@ -227,14 +228,14 @@ function factory (type, config, load, typed) {
    * @param {Object} y
    * @returns {number} Returns the comparison result: -1, 0, or 1
    */
-  function compareObjects (x, y) {
+  function compareObjects (compareNatural, x, y) {
     const keysX = Object.keys(x)
     const keysY = Object.keys(y)
 
     // compare keys
     keysX.sort(naturalSort)
     keysY.sort(naturalSort)
-    const c = compareArrays(keysX, keysY)
+    const c = compareArrays(compareNatural, keysX, keysY)
     if (c !== 0) {
       return c
     }
@@ -249,9 +250,7 @@ function factory (type, config, load, typed) {
 
     return 0
   }
-
-  return compareNatural
-}
+})
 
 /**
  * Compare two complex numbers, `x` and `y`:
@@ -272,6 +271,3 @@ function compareComplexNumbers (x, y) {
 
   return 0
 }
-
-exports.name = 'compareNatural'
-exports.factory = factory

@@ -1,8 +1,10 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 're'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createRe = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Get the real part of a complex number.
    * For a complex number `a + bi`, the function returns `a`.
@@ -30,28 +32,9 @@ function factory (type, config, load, typed) {
    *            A complex number or array with complex numbers
    * @return {number | BigNumber | Array | Matrix} The real part of x
    */
-  const re = typed('re', {
-    'number': function (x) {
-      return x
-    },
-
-    'BigNumber': function (x) {
-      return x
-    },
-
-    'Complex': function (x) {
-      return x.re
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, re)
-    }
+  return typed(name, {
+    'number | BigNumber | Fraction': x => x,
+    Complex: x => x.re,
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  re.toTex = { 1: `\\Re\\left\\lbrace\${args[0]}\\right\\rbrace` }
-
-  return re
-}
-
-exports.name = 're'
-exports.factory = factory
+})

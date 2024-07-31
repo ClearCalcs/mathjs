@@ -1,12 +1,9 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-const util = require('../../utils/index')
+const name = 'Matrix'
+const dependencies = []
 
-const string = util.string
-
-const isString = string.isString
-
-function factory (type, config, load, typed) {
+export const createMatrixClass = /* #__PURE__ */ factory(name, dependencies, () => {
   /**
    * @constructor Matrix
    *
@@ -40,32 +37,6 @@ function factory (type, config, load, typed) {
    */
   Matrix.prototype.type = 'Matrix'
   Matrix.prototype.isMatrix = true
-
-  /**
-   * Get the Matrix storage constructor for the given format.
-   *
-   * @param {string} format       The Matrix storage format.
-   *
-   * @return {Function}           The Matrix storage constructor.
-   */
-  Matrix.storage = function (format) {
-    // check storage format is a string
-    if (!isString(format)) {
-      throw new TypeError('format must be a string value')
-    }
-
-    // get storage format constructor
-    const constructor = Matrix._storage[format]
-    if (!constructor) {
-      throw new SyntaxError('Unsupported matrix storage format: ' + format)
-    }
-
-    // return storage constructor
-    return constructor
-  }
-
-  // a map with all constructors for all storage types
-  Matrix._storage = {}
 
   /**
    * Get the storage format used by the matrix.
@@ -220,6 +191,15 @@ function factory (type, config, load, typed) {
   }
 
   /**
+   * Iterate over the matrix elements
+   * @return {Iterable<{ value, index: number[] }>}
+   */
+  Matrix.prototype[Symbol.iterator] = function () {
+    // must be implemented by each of the Matrix implementations
+    throw new Error('Cannot iterate a Matrix interface')
+  }
+
+  /**
    * Create an Array with a copy of the data of the Matrix
    * @returns {Array} array
    */
@@ -259,10 +239,5 @@ function factory (type, config, load, typed) {
     throw new Error('Cannot invoke toString on a Matrix interface')
   }
 
-  // exports
   return Matrix
-}
-
-exports.name = 'Matrix'
-exports.path = 'type'
-exports.factory = factory
+}, { isClass: true })

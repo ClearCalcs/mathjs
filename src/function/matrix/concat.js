@@ -1,14 +1,14 @@
-'use strict'
+import { isBigNumber, isMatrix, isNumber } from '../../utils/is.js'
+import { clone } from '../../utils/object.js'
+import { arraySize, concat as _concat } from '../../utils/array.js'
+import { IndexError } from '../../error/IndexError.js'
+import { DimensionError } from '../../error/DimensionError.js'
+import { factory } from '../../utils/factory.js'
 
-const clone = require('../../utils/object').clone
-const array = require('../../utils/array')
-const IndexError = require('../../error/IndexError')
-const DimensionError = require('../../error/DimensionError')
+const name = 'concat'
+const dependencies = ['typed', 'matrix', 'isInteger']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const isInteger = load(require('../utils/isInteger'))
-
+export const createConcat = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, isInteger }) => {
   /**
    * Concatenate two or more matrices.
    *
@@ -38,7 +38,7 @@ function factory (type, config, load, typed) {
    * @param {... Array | Matrix} args     Two or more matrices
    * @return {Array | Matrix} Concatenated matrix
    */
-  const concat = typed('concat', {
+  return typed(name, {
     // TODO: change signature to '...Array | Matrix, dim?' when supported
     '...Array | Matrix | number | BigNumber': function (args) {
       let i
@@ -52,11 +52,11 @@ function factory (type, config, load, typed) {
         const arg = args[i]
 
         // test whether we need to return a Matrix (if not we return an Array)
-        if (type.isMatrix(arg)) {
+        if (isMatrix(arg)) {
           asMatrix = true
         }
 
-        if (type.isNumber(arg) || type.isBigNumber(arg)) {
+        if (isNumber(arg) || isBigNumber(arg)) {
           if (i !== len - 1) {
             throw new Error('Dimension must be specified as last argument')
           }
@@ -76,7 +76,7 @@ function factory (type, config, load, typed) {
         } else {
           // this is a matrix or array
           const m = clone(arg).valueOf()
-          const size = array.size(m)
+          const size = arraySize(m)
           matrices[i] = m
           prevDim = dim
           dim = size.length - 1
@@ -94,7 +94,7 @@ function factory (type, config, load, typed) {
 
       let res = matrices.shift()
       while (matrices.length) {
-        res = _concat(res, matrices.shift(), dim, 0)
+        res = _concat(res, matrices.shift(), dim)
       }
 
       return asMatrix ? matrix(res) : res
@@ -104,39 +104,4 @@ function factory (type, config, load, typed) {
       return args.join('')
     }
   })
-
-  concat.toTex = undefined // use default template
-
-  return concat
-}
-
-/**
- * Recursively concatenate two matrices.
- * The contents of the matrices is not cloned.
- * @param {Array} a             Multi dimensional array
- * @param {Array} b             Multi dimensional array
- * @param {number} concatDim    The dimension on which to concatenate (zero-based)
- * @param {number} dim          The current dim (zero-based)
- * @return {Array} c            The concatenated matrix
- * @private
- */
-function _concat (a, b, concatDim, dim) {
-  if (dim < concatDim) {
-    // recurse into next dimension
-    if (a.length !== b.length) {
-      throw new DimensionError(a.length, b.length)
-    }
-
-    const c = []
-    for (let i = 0; i < a.length; i++) {
-      c[i] = _concat(a[i], b[i], concatDim, dim + 1)
-    }
-    return c
-  } else {
-    // concatenate this dimension
-    return a.concat(b)
-  }
-}
-
-exports.name = 'concat'
-exports.factory = factory
+})

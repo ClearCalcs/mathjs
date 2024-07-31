@@ -1,13 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { sinhNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'sinh'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createSinh = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Calculate the hyperbolic sine of a value,
    * defined as `sinh(x) = 1/2 * (exp(x) - exp(-x))`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix hyperbolic sine, this function does
+   * not apply to matrices.
    *
    * Syntax:
    *
@@ -21,47 +24,11 @@ function factory (type, config, load, typed) {
    *
    *    cosh, tanh
    *
-   * @param {number | BigNumber | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} Hyperbolic sine of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic sine of x
    */
-  const sinh = typed('sinh', {
-    'number': _sinh,
-
-    'Complex': function (x) {
-      return x.sinh()
-    },
-
-    'BigNumber': function (x) {
-      return x.sinh()
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function sinh is no angle')
-      }
-      return sinh(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since sinh(0) = 0
-      return deepMap(x, sinh, true)
-    }
+  return typed(name, {
+    number: sinhNumber,
+    'Complex | BigNumber': x => x.sinh()
   })
-
-  sinh.toTex = { 1: `\\sinh\\left(\${args[0]}\\right)` }
-
-  return sinh
-}
-
-/**
- * Calculate the hyperbolic sine of a number
- * @param {number} x
- * @returns {number}
- * @private
- */
-const _sinh = Math.sinh || function (x) {
-  return (Math.exp(x) - Math.exp(-x)) / 2
-}
-
-exports.name = 'sinh'
-exports.factory = factory
+})

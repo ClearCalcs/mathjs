@@ -1,16 +1,12 @@
-'use strict'
+import { isMatrix } from '../../utils/is.js'
+import { clone } from '../../utils/object.js'
+import { format } from '../../utils/string.js'
+import { factory } from '../../utils/factory.js'
 
-const util = require('../../utils/index')
-const object = util.object
-const string = util.string
+const name = 'det'
+const dependencies = ['typed', 'matrix', 'subtractScalar', 'multiply', 'divideScalar', 'isZero', 'unaryMinus']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const subtract = load(require('../arithmetic/subtract'))
-  const multiply = load(require('../arithmetic/multiply'))
-  const unaryMinus = load(require('../arithmetic/unaryMinus'))
-  const lup = load(require('../algebra/decomposition/lup'))
-
+export const createDet = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, subtractScalar, multiply, divideScalar, isZero, unaryMinus }) => {
   /**
    * Calculate the determinant of a matrix.
    *
@@ -36,14 +32,14 @@ function factory (type, config, load, typed) {
    * @param {Array | Matrix} x  A matrix
    * @return {number} The determinant of `x`
    */
-  const det = typed('det', {
-    'any': function (x) {
-      return object.clone(x)
+  return typed(name, {
+    any: function (x) {
+      return clone(x)
     },
 
     'Array | Matrix': function det (x) {
       let size
-      if (type.isMatrix(x)) {
+      if (isMatrix(x)) {
         size = x.size()
       } else if (Array.isArray(x)) {
         x = matrix(x)
@@ -56,39 +52,41 @@ function factory (type, config, load, typed) {
       switch (size.length) {
         case 0:
           // scalar
-          return object.clone(x)
+          return clone(x)
 
         case 1:
           // vector
           if (size[0] === 1) {
-            return object.clone(x.valueOf()[0])
+            return clone(x.valueOf()[0])
+          } if (size[0] === 0) {
+            return 1 // det of an empty matrix is per definition 1
           } else {
             throw new RangeError('Matrix must be square ' +
-            '(size: ' + string.format(size) + ')')
+            '(size: ' + format(size) + ')')
           }
 
         case 2:
-          // two dimensional array
+        {
+          // two-dimensional array
           const rows = size[0]
           const cols = size[1]
           if (rows === cols) {
             return _det(x.clone().valueOf(), rows, cols)
+          } if (cols === 0) {
+            return 1 // det of an empty matrix is per definition 1
           } else {
             throw new RangeError('Matrix must be square ' +
-            '(size: ' + string.format(size) + ')')
+              '(size: ' + format(size) + ')')
           }
+        }
 
         default:
           // multi dimensional array
           throw new RangeError('Matrix must be two dimensional ' +
-          '(size: ' + string.format(size) + ')')
+          '(size: ' + format(size) + ')')
       }
     }
   })
-
-  det.toTex = { 1: `\\det\\left(\${args[0]}\\right)` }
-
-  return det
 
   /**
    * Calculate the determinant of a matrix
@@ -101,50 +99,46 @@ function factory (type, config, load, typed) {
   function _det (matrix, rows, cols) {
     if (rows === 1) {
       // this is a 1 x 1 matrix
-      return object.clone(matrix[0][0])
+      return clone(matrix[0][0])
     } else if (rows === 2) {
       // this is a 2 x 2 matrix
       // the determinant of [a11,a12;a21,a22] is det = a11*a22-a21*a12
-      return subtract(
+      return subtractScalar(
         multiply(matrix[0][0], matrix[1][1]),
         multiply(matrix[1][0], matrix[0][1])
       )
     } else {
-      // Compute the LU decomposition
-      const decomp = lup(matrix)
-
-      // The determinant is the product of the diagonal entries of U (and those of L, but they are all 1)
-      let det = decomp.U[0][0]
-      for (let i = 1; i < rows; i++) {
-        det = multiply(det, decomp.U[i][i])
+      // Bareiss algorithm
+      // this algorithm have same complexity as LUP decomposition (O(n^3))
+      // but it preserve precision of floating point more relative to the LUP decomposition
+      let negated = false
+      const rowIndices = new Array(rows).fill(0).map((_, i) => i) // matrix index of row i
+      for (let k = 0; k < rows; k++) {
+        let k_ = rowIndices[k]
+        if (isZero(matrix[k_][k])) {
+          let _k
+          for (_k = k + 1; _k < rows; _k++) {
+            if (!isZero(matrix[rowIndices[_k]][k])) {
+              k_ = rowIndices[_k]
+              rowIndices[_k] = rowIndices[k]
+              rowIndices[k] = k_
+              negated = !negated
+              break
+            }
+          }
+          if (_k === rows) return matrix[k_][k] // some zero of the type
+        }
+        const piv = matrix[k_][k]
+        const piv_ = k === 0 ? 1 : matrix[rowIndices[k - 1]][k - 1]
+        for (let i = k + 1; i < rows; i++) {
+          const i_ = rowIndices[i]
+          for (let j = k + 1; j < rows; j++) {
+            matrix[i_][j] = divideScalar(subtractScalar(multiply(matrix[i_][j], piv), multiply(matrix[i_][k], matrix[k_][j])), piv_)
+          }
+        }
       }
-
-      // The determinant will be multiplied by 1 or -1 depending on the parity of the permutation matrix.
-      // This can be determined by counting the cycles. This is roughly a linear time algorithm.
-      let evenCycles = 0
-      let i = 0
-      const visited = []
-      while (true) {
-        while (visited[i]) {
-          i++
-        }
-        if (i >= rows) break
-        let j = i
-        let cycleLen = 0
-        while (!visited[decomp.p[j]]) {
-          visited[decomp.p[j]] = true
-          j = decomp.p[j]
-          cycleLen++
-        }
-        if (cycleLen % 2 === 0) {
-          evenCycles++
-        }
-      }
-
-      return evenCycles % 2 === 0 ? det : unaryMinus(det)
+      const det = matrix[rowIndices[rows - 1]][rows - 1]
+      return negated ? unaryMinus(det) : det
     }
   }
-}
-
-exports.name = 'det'
-exports.factory = factory
+})

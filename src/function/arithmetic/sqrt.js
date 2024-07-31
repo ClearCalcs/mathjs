@@ -1,12 +1,15 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'sqrt'
+const dependencies = ['config', 'typed', 'Complex']
 
-function factory (type, config, load, typed) {
+export const createSqrt = /* #__PURE__ */ factory(name, dependencies, ({ config, typed, Complex }) => {
   /**
    * Calculate the square root of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * For matrices, if you want the matrix square root of a square matrix,
+   * use the `sqrtm` function. If you wish to apply `sqrt` elementwise to
+   * a matrix M, use `math.map(M, math.sqrt)`.
    *
    * Syntax:
    *
@@ -22,19 +25,19 @@ function factory (type, config, load, typed) {
    *
    *    square, multiply, cube, cbrt, sqrtm
    *
-   * @param {number | BigNumber | Complex | Array | Matrix | Unit} x
+   * @param {number | BigNumber | Complex | Unit} x
    *            Value for which to calculate the square root.
-   * @return {number | BigNumber | Complex | Array | Matrix | Unit}
+   * @return {number | BigNumber | Complex | Unit}
    *            Returns the square root of `x`
    */
-  const sqrt = typed('sqrt', {
-    'number': _sqrtNumber,
+  return typed('sqrt', {
+    number: _sqrtNumber,
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.sqrt()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       if (!x.isNegative() || config.predictable) {
         return x.sqrt()
       } else {
@@ -43,12 +46,7 @@ function factory (type, config, load, typed) {
       }
     },
 
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since sqrt(0) = 0
-      return deepMap(x, sqrt, true)
-    },
-
-    'Unit': function (x) {
+    Unit: function (x) {
       // Someday will work for complex units when they are implemented
       return x.pow(0.5)
     }
@@ -67,14 +65,7 @@ function factory (type, config, load, typed) {
     } else if (x >= 0 || config.predictable) {
       return Math.sqrt(x)
     } else {
-      return new type.Complex(x, 0).sqrt()
+      return new Complex(x, 0).sqrt()
     }
   }
-
-  sqrt.toTex = { 1: `\\sqrt{\${args[0]}}` }
-
-  return sqrt
-}
-
-exports.name = 'sqrt'
-exports.factory = factory
+})

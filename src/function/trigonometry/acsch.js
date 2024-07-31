@@ -1,13 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { acschNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'acsch'
+const dependencies = ['typed', 'BigNumber']
 
-function factory (type, config, load, typed) {
+export const createAcsch = /* #__PURE__ */ factory(name, dependencies, ({ typed, BigNumber }) => {
   /**
    * Calculate the hyperbolic arccosecant of a value,
    * defined as `acsch(x) = asinh(1/x) = ln(1/x + sqrt(1/x^2 + 1))`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix hyperbolic arccosecant, this function
+   * does not apply to matrices.
    *
    * Syntax:
    *
@@ -21,32 +24,18 @@ function factory (type, config, load, typed) {
    *
    *    asech, acoth
    *
-   * @param {number | Complex | Array | Matrix} x  Function input
-   * @return {number | Complex | Array | Matrix} Hyperbolic arccosecant of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic arccosecant of x
    */
-  const acsch = typed('acsch', {
-    'number': function (x) {
-      x = 1 / x
-      return Math.log(x + Math.sqrt(x * x + 1))
-    },
+  return typed(name, {
+    number: acschNumber,
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.acsch()
     },
 
-    'BigNumber': function (x) {
-      return new type.BigNumber(1).div(x).asinh()
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, acsch)
+    BigNumber: function (x) {
+      return new BigNumber(1).div(x).asinh()
     }
   })
-
-  acsch.toTex = { 1: `\\mathrm{csch}^{-1}\\left(\${args[0]}\\right)` }
-
-  return acsch
-}
-
-exports.name = 'acsch'
-exports.factory = factory
+})

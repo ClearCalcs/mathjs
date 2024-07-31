@@ -1,11 +1,13 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
+import { csCumsum } from './csCumsum.js'
+import { factory } from '../../../utils/factory.js'
 
-function factory (type, config, load) {
-  const csCumsum = load(require('./csCumsum'))
-  const conj = load(require('../../complex/conj'))
+const name = 'csSymperm'
+const dependencies = ['conj', 'SparseMatrix']
 
-  const SparseMatrix = type.SparseMatrix
-
+export const createCsSymperm = /* #__PURE__ */ factory(name, dependencies, ({ conj, SparseMatrix }) => {
   /**
    * Computes the symmetric permutation of matrix A accessing only
    * the upper triangular part of A.
@@ -17,10 +19,8 @@ function factory (type, config, load) {
    * @param {boolean} values          Process matrix values (true)
    *
    * @return {Matrix}                 The C matrix, C = P * A * P'
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
    */
-  const csSymperm = function (a, pinv, values) {
+  return function csSymperm (a, pinv, values) {
     // A matrix arrays
     const avalues = a._values
     const aindex = a._index
@@ -82,10 +82,4 @@ function factory (type, config, load) {
       size: [n, n]
     })
   }
-
-  return csSymperm
-}
-
-exports.name = 'csSymperm'
-exports.path = 'algebra.sparse'
-exports.factory = factory
+})

@@ -1,11 +1,10 @@
-'use strict'
+import { deepMap } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'factorial'
+const dependencies = ['typed', 'gamma']
 
-function factory (type, config, load, typed) {
-  const gamma = load(require('./gamma'))
-  const latex = require('../../utils/latex')
-
+export const createFactorial = /* #__PURE__ */ factory(name, dependencies, ({ typed, gamma }) => {
   /**
    * Compute the factorial of a value
    *
@@ -23,13 +22,13 @@ function factory (type, config, load, typed) {
    *
    * See also:
    *
-   *    combinations, gamma, permutations
+   *    combinations, combinationsWithRep, gamma, permutations
    *
    * @param {number | BigNumber | Array | Matrix} n   An integer number
    * @return {number | BigNumber | Array | Matrix}    The factorial of `n`
    */
-  const factorial = typed('factorial', {
-    'number': function (n) {
+  return typed(name, {
+    number: function (n) {
       if (n < 0) {
         throw new Error('Value must be non-negative')
       }
@@ -37,7 +36,7 @@ function factory (type, config, load, typed) {
       return gamma(n + 1)
     },
 
-    'BigNumber': function (n) {
+    BigNumber: function (n) {
       if (n.isNegative()) {
         throw new Error('Value must be non-negative')
       }
@@ -45,17 +44,6 @@ function factory (type, config, load, typed) {
       return gamma(n.plus(1))
     },
 
-    'Array | Matrix': function (n) {
-      return deepMap(n, factorial)
-    }
+    'Array | Matrix': typed.referToSelf(self => n => deepMap(n, self))
   })
-
-  factorial.toTex = {
-    1: `\\left(\${args[0]}\\right)${latex.operators['factorial']}`
-  }
-
-  return factorial
-}
-
-exports.name = 'factorial'
-exports.factory = factory
+})

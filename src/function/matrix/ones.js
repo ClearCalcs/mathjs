@@ -1,11 +1,12 @@
-'use strict'
+import { isBigNumber } from '../../utils/is.js'
+import { isInteger } from '../../utils/number.js'
+import { resize } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const isInteger = require('../../utils/number').isInteger
-const resize = require('../../utils/array').resize
+const name = 'ones'
+const dependencies = ['typed', 'config', 'matrix', 'BigNumber']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createOnes = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, matrix, BigNumber }) => {
   /**
    * Create a matrix filled with ones. The created matrix can have one or
    * multiple dimensions.
@@ -23,6 +24,7 @@ function factory (type, config, load, typed) {
    *
    * Examples:
    *
+   *    math.ones()                    // returns []
    *    math.ones(3)                   // returns [1, 1, 1]
    *    math.ones(3, 2)                // returns [[1, 1], [1, 1], [1, 1]]
    *    math.ones(3, 2, 'dense')       // returns Dense Matrix [[1, 1], [1, 1], [1, 1]]
@@ -34,12 +36,12 @@ function factory (type, config, load, typed) {
    *
    *    zeros, identity, size, range
    *
-   * @param {...number | Array} size    The size of each dimension of the matrix
+   * @param {...(number|BigNumber) | Array} size    The size of each dimension of the matrix
    * @param {string} [format]           The Matrix storage format
    *
    * @return {Array | Matrix | number}  A matrix filled with ones
    */
-  const ones = typed('ones', {
+  return typed('ones', {
     '': function () {
       return (config.matrix === 'Array')
         ? _ones([])
@@ -60,9 +62,9 @@ function factory (type, config, load, typed) {
       }
     },
 
-    'Array': _ones,
+    Array: _ones,
 
-    'Matrix': function (size) {
+    Matrix: function (size) {
       const format = size.storage()
       return _ones(size.valueOf(), format)
     },
@@ -71,10 +73,6 @@ function factory (type, config, load, typed) {
       return _ones(size.valueOf(), format)
     }
   })
-
-  ones.toTex = undefined // use default template
-
-  return ones
 
   /**
    * Create an Array or Matrix with ones
@@ -85,7 +83,7 @@ function factory (type, config, load, typed) {
    */
   function _ones (size, format) {
     const hasBigNumbers = _normalize(size)
-    const defaultValue = hasBigNumbers ? new type.BigNumber(1) : 1
+    const defaultValue = hasBigNumbers ? new BigNumber(1) : 1
     _validate(size)
 
     if (format) {
@@ -109,7 +107,7 @@ function factory (type, config, load, typed) {
   function _normalize (size) {
     let hasBigNumbers = false
     size.forEach(function (value, index, arr) {
-      if (type.isBigNumber(value)) {
+      if (isBigNumber(value)) {
         hasBigNumbers = true
         arr[index] = value.toNumber()
       }
@@ -125,7 +123,4 @@ function factory (type, config, load, typed) {
       }
     })
   }
-}
-
-exports.name = 'ones'
-exports.factory = factory
+})

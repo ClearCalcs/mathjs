@@ -1,15 +1,38 @@
-'use strict'
+import { isInteger } from '../../utils/number.js'
+import { factory } from '../../utils/factory.js'
+import { createMod } from './mod.js'
+import { createMatAlgo01xDSid } from '../../type/matrix/utils/matAlgo01xDSid.js'
+import { createMatAlgo04xSidSid } from '../../type/matrix/utils/matAlgo04xSidSid.js'
+import { createMatAlgo10xSids } from '../../type/matrix/utils/matAlgo10xSids.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
+import { ArgumentsError } from '../../error/ArgumentsError.js'
 
-const isInteger = require('../../utils/number').isInteger
+const name = 'gcd'
+const dependencies = [
+  'typed',
+  'config',
+  'round',
+  'matrix',
+  'equalScalar',
+  'zeros',
+  'BigNumber',
+  'DenseMatrix',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
+const gcdTypes = 'number | BigNumber | Fraction | Matrix | Array'
+const gcdManyTypesSignature = `${gcdTypes}, ${gcdTypes}, ...${gcdTypes}`
 
-  const algorithm01 = load(require('../../type/matrix/utils/algorithm01'))
-  const algorithm04 = load(require('../../type/matrix/utils/algorithm04'))
-  const algorithm10 = load(require('../../type/matrix/utils/algorithm10'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+function is1d (array) {
+  return !array.some(element => Array.isArray(element))
+}
+
+export const createGcd = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, config, round, equalScalar, zeros, BigNumber, DenseMatrix, concat }) => {
+  const mod = createMod({ typed, config, round, matrix, equalScalar, zeros, DenseMatrix, concat })
+  const matAlgo01xDSid = createMatAlgo01xDSid({ typed })
+  const matAlgo04xSidSid = createMatAlgo04xSidSid({ typed, equalScalar })
+  const matAlgo10xSids = createMatAlgo10xSids({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Calculate the greatest common divisor for two or more values or arrays.
@@ -36,86 +59,62 @@ function factory (type, config, load, typed) {
    * @param {... number | BigNumber | Fraction | Array | Matrix} args  Two or more integer numbers
    * @return {number | BigNumber | Fraction | Array | Matrix}                           The greatest common divisor
    */
-  const gcd = typed('gcd', {
-
-    'number, number': _gcd,
-
-    'BigNumber, BigNumber': _gcdBigNumber,
-
-    'Fraction, Fraction': function (x, y) {
-      return x.gcd(y)
+  return typed(
+    name,
+    {
+      'number, number': _gcdNumber,
+      'BigNumber, BigNumber': _gcdBigNumber,
+      'Fraction, Fraction': (x, y) => x.gcd(y)
     },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm04(x, y, gcd)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm01(y, x, gcd, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm01(x, y, gcd, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, gcd)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return gcd(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return gcd(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return gcd(x, matrix(y))
-    },
-
-    'SparseMatrix, number | BigNumber': function (x, y) {
-      return algorithm10(x, y, gcd, false)
-    },
-
-    'DenseMatrix, number | BigNumber': function (x, y) {
-      return algorithm14(x, y, gcd, false)
-    },
-
-    'number | BigNumber, SparseMatrix': function (x, y) {
-      return algorithm10(y, x, gcd, true)
-    },
-
-    'number | BigNumber, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, gcd, true)
-    },
-
-    'Array, number | BigNumber': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, gcd, false).valueOf()
-    },
-
-    'number | BigNumber, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, gcd, true).valueOf()
-    },
-
-    // TODO: need a smarter notation here
-    'Array | Matrix | number | BigNumber, Array | Matrix | number | BigNumber, ...Array | Matrix | number | BigNumber': function (a, b, args) {
-      let res = gcd(a, b)
-      for (let i = 0; i < args.length; i++) {
-        res = gcd(res, args[i])
-      }
-      return res
+    matrixAlgorithmSuite({
+      SS: matAlgo04xSidSid,
+      DS: matAlgo01xDSid,
+      Ss: matAlgo10xSids
+    }),
+    {
+      [gcdManyTypesSignature]: typed.referToSelf(self => (a, b, args) => {
+        let res = self(a, b)
+        for (let i = 0; i < args.length; i++) {
+          res = self(res, args[i])
+        }
+        return res
+      }),
+      Array: typed.referToSelf(self => (array) => {
+        if (array.length === 1 && Array.isArray(array[0]) && is1d(array[0])) {
+          return self(...array[0])
+        }
+        if (is1d(array)) {
+          return self(...array)
+        }
+        throw new ArgumentsError('gcd() supports only 1d matrices!')
+      }),
+      Matrix: typed.referToSelf(self => (matrix) => {
+        return self(matrix.toArray())
+      })
     }
-  })
+  )
 
-  gcd.toTex = `\\gcd\\left(\${args}\\right)`
+  /**
+ * Calculate gcd for numbers
+ * @param {number} a
+ * @param {number} b
+ * @returns {number} Returns the greatest common denominator of a and b
+ * @private
+ */
+  function _gcdNumber (a, b) {
+    if (!isInteger(a) || !isInteger(b)) {
+      throw new Error('Parameters in function gcd must be integer numbers')
+    }
 
-  return gcd
+    // https://en.wikipedia.org/wiki/Euclidean_algorithm
+    let r
+    while (b !== 0) {
+      r = mod(a, b)
+      a = b
+      b = r
+    }
+    return (a < 0) ? -a : a
+  }
 
   /**
    * Calculate gcd for BigNumbers
@@ -129,38 +128,13 @@ function factory (type, config, load, typed) {
       throw new Error('Parameters in function gcd must be integer numbers')
     }
 
-    // http://en.wikipedia.org/wiki/Euclidean_algorithm
-    const zero = new type.BigNumber(0)
+    // https://en.wikipedia.org/wiki/Euclidean_algorithm
+    const zero = new BigNumber(0)
     while (!b.isZero()) {
-      const r = a.mod(b)
+      const r = mod(a, b)
       a = b
       b = r
     }
     return a.lt(zero) ? a.neg() : a
   }
-}
-
-/**
- * Calculate gcd for numbers
- * @param {number} a
- * @param {number} b
- * @returns {number} Returns the greatest common denominator of a and b
- * @private
- */
-function _gcd (a, b) {
-  if (!isInteger(a) || !isInteger(b)) {
-    throw new Error('Parameters in function gcd must be integer numbers')
-  }
-
-  // http://en.wikipedia.org/wiki/Euclidean_algorithm
-  let r
-  while (b !== 0) {
-    r = a % b
-    a = b
-    b = r
-  }
-  return (a < 0) ? -a : a
-}
-
-exports.name = 'gcd'
-exports.factory = factory
+})

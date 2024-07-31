@@ -1,9 +1,11 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
+import { signNumber } from '../../plain/number/index.js'
 
-const number = require('../../utils/number')
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'sign'
+const dependencies = ['typed', 'BigNumber', 'Fraction', 'complex']
 
-function factory (type, config, load, typed) {
+export const createSign = /* #__PURE__ */ factory(name, dependencies, ({ typed, BigNumber, complex, Fraction }) => {
   /**
    * Compute the sign of a value. The sign of a value x is:
    *
@@ -29,40 +31,38 @@ function factory (type, config, load, typed) {
    *
    *    abs
    *
-   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix | Unit} x
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Array | Matrix | Unit} x
    *            The number for which to determine the sign
-   * @return {number | BigNumber | Fraction | Complex | Array | Matrix | Unit}e
+   * @return {number | BigNumber | bigint | Fraction | Complex | Array | Matrix | Unit}
    *            The sign of `x`
    */
-  const sign = typed('sign', {
-    'number': number.sign,
+  return typed(name, {
+    number: signNumber,
 
-    'Complex': function (x) {
-      return x.sign()
+    Complex: function (x) {
+      return x.im === 0 ? complex(signNumber(x.re)) : x.sign()
     },
 
-    'BigNumber': function (x) {
-      return new type.BigNumber(x.cmp(0))
+    BigNumber: function (x) {
+      return new BigNumber(x.cmp(0))
     },
 
-    'Fraction': function (x) {
-      return new type.Fraction(x.s, 1)
+    bigint: function (x) {
+      return x > 0n ? 1n : x < 0n ? -1n : 0n
     },
 
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since sign(0) = 0
-      return deepMap(x, sign, true)
+    Fraction: function (x) {
+      return new Fraction(x.s, 1)
     },
 
-    'Unit': function (x) {
-      return sign(x.value)
-    }
+    // deep map collection, skip zeros since sign(0) = 0
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self, true)),
+
+    Unit: typed.referToSelf(self => x => {
+      if (!x._isDerived() && x.units[0].unit.offset !== 0) {
+        throw new TypeError('sign is ambiguous for units with offset')
+      }
+      return typed.find(self, x.valueType())(x.value)
+    })
   })
-
-  sign.toTex = { 1: `\\mathrm{\${name}}\\left(\${args[0]}\\right)` }
-
-  return sign
-}
-
-exports.name = 'sign'
-exports.factory = factory
+})

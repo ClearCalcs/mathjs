@@ -1,9 +1,11 @@
-'use strict'
+import { factory } from '../utils/factory.js'
+import { deepMap } from '../utils/collection.js'
+import { format } from '../utils/number.js'
 
-const deepMap = require('./../utils/collection/deepMap')
-const number = require('../utils/number')
+const name = 'string'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createString = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Create a string or convert any object into a string.
    * Elements of Arrays and Matrices are processed element wise.
@@ -29,41 +31,29 @@ function factory (type, config, load, typed) {
    * @param {* | Array | Matrix | null} [value]  A value to convert to a string
    * @return {string | Array | Matrix} The created string
    */
-  const string = typed('string', {
+  return typed(name, {
     '': function () {
       return ''
     },
 
-    'number': number.format,
+    number: format,
 
-    'null': function (x) {
+    null: function (x) {
       return 'null'
     },
 
-    'boolean': function (x) {
+    boolean: function (x) {
       return x + ''
     },
 
-    'string': function (x) {
+    string: function (x) {
       return x
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, string)
-    },
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self)),
 
-    'any': function (x) {
+    any: function (x) {
       return String(x)
     }
   })
-
-  string.toTex = {
-    0: '\\mathtt{""}',
-    1: `\\mathrm{string}\\left(\${args[0]}\\right)`
-  }
-
-  return string
-}
-
-exports.name = 'string'
-exports.factory = factory
+})

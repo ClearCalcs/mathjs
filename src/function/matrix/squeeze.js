@@ -1,11 +1,11 @@
-'use strict'
+import { clone } from '../../utils/object.js'
+import { squeeze as arraySqueeze } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const object = require('../../utils/object')
-const array = require('../../utils/array')
+const name = 'squeeze'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createSqueeze = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Squeeze a matrix, remove inner and outer singleton dimensions from a matrix.
    *
@@ -35,27 +35,20 @@ function factory (type, config, load, typed) {
    * @param {Matrix | Array} x      Matrix to be squeezed
    * @return {Matrix | Array} Squeezed matrix
    */
-  const squeeze = typed('squeeze', {
-    'Array': function (x) {
-      return array.squeeze(object.clone(x))
+  return typed(name, {
+    Array: function (x) {
+      return arraySqueeze(clone(x))
     },
 
-    'Matrix': function (x) {
-      const res = array.squeeze(x.toArray())
+    Matrix: function (x) {
+      const res = arraySqueeze(x.toArray())
       // FIXME: return the same type of matrix as the input
-      return Array.isArray(res) ? matrix(res) : res
+      return Array.isArray(res) ? x.create(res, x.datatype()) : res
     },
 
-    'any': function (x) {
+    any: function (x) {
       // scalar
-      return object.clone(x)
+      return clone(x)
     }
   })
-
-  squeeze.toTex = undefined // use default template
-
-  return squeeze
-}
-
-exports.name = 'squeeze'
-exports.factory = factory
+})

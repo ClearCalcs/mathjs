@@ -1,12 +1,11 @@
-'use strict'
+import { applyCallback } from '../../utils/applyCallback.js'
+import { filter, filterRegExp } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const filter = require('../../utils/array').filter
-const filterRegExp = require('../../utils/array').filterRegExp
-const maxArgumentCount = require('../../utils/function').maxArgumentCount
+const name = 'filter'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createFilter = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Filter the items in an array or one dimensional matrix.
    *
@@ -36,24 +35,20 @@ function factory (type, config, load, typed) {
    *        matrix/array being traversed. The function must return a boolean.
    * @return {Matrix | Array} Returns the filtered matrix.
    */
-  const filter = typed('filter', {
+  return typed('filter', {
     'Array, function': _filterCallback,
 
     'Matrix, function': function (x, test) {
-      return matrix(_filterCallback(x.toArray(), test))
+      return x.create(_filterCallback(x.valueOf(), test), x.datatype())
     },
 
     'Array, RegExp': filterRegExp,
 
     'Matrix, RegExp': function (x, test) {
-      return matrix(filterRegExp(x.toArray(), test))
+      return x.create(filterRegExp(x.valueOf(), test), x.datatype())
     }
   })
-
-  filter.toTex = undefined // use default template
-
-  return filter
-}
+})
 
 /**
  * Filter values in a callback given a callback function
@@ -63,20 +58,8 @@ function factory (type, config, load, typed) {
  * @private
  */
 function _filterCallback (x, callback) {
-  // figure out what number of arguments the callback function expects
-  const args = maxArgumentCount(callback)
-
   return filter(x, function (value, index, array) {
     // invoke the callback function with the right number of arguments
-    if (args === 1) {
-      return callback(value)
-    } else if (args === 2) {
-      return callback(value, [index])
-    } else { // 3 or -1
-      return callback(value, [index], array)
-    }
+    return applyCallback(callback, value, [index], array, 'filter')
   })
 }
-
-exports.name = 'filter'
-exports.factory = factory

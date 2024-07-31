@@ -1,13 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { cothNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'coth'
+const dependencies = ['typed', 'BigNumber']
 
-function factory (type, config, load, typed) {
+export const createCoth = /* #__PURE__ */ factory(name, dependencies, ({ typed, BigNumber }) => {
   /**
    * Calculate the hyperbolic cotangent of a value,
    * defined as `coth(x) = 1 / tanh(x)`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix hyperbolic cotangent, this function
+   * does not apply to matrices.
    *
    * Syntax:
    *
@@ -23,47 +26,12 @@ function factory (type, config, load, typed) {
    *
    *    sinh, tanh, cosh
    *
-   * @param {number | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | Complex | Array | Matrix} Hyperbolic cotangent of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic cotangent of x
    */
-  const coth = typed('coth', {
-    'number': _coth,
-
-    'Complex': function (x) {
-      return x.coth()
-    },
-
-    'BigNumber': function (x) {
-      return new type.BigNumber(1).div(x.tanh())
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function coth is no angle')
-      }
-      return coth(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, coth)
-    }
+  return typed(name, {
+    number: cothNumber,
+    Complex: x => x.coth(),
+    BigNumber: x => new BigNumber(1).div(x.tanh())
   })
-
-  coth.toTex = { 1: `\\coth\\left(\${args[0]}\\right)` }
-
-  return coth
-}
-
-/**
- * Calculate the hyperbolic cosine of a number
- * @param {number} x
- * @returns {number}
- * @private
- */
-function _coth (x) {
-  const e = Math.exp(2 * x)
-  return (e + 1) / (e - 1)
-}
-
-exports.name = 'coth'
-exports.factory = factory
+})

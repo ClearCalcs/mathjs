@@ -1,8 +1,11 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
+import { absNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'abs'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createAbs = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Calculate the absolute value of a number. For matrices, the function is
    * evaluated element wise.
@@ -22,40 +25,19 @@ function factory (type, config, load, typed) {
    *
    *    sign
    *
-   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix | Unit} x
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Array | Matrix | Unit} x
    *            A number or matrix for which to get the absolute value
-   * @return {number | BigNumber | Fraction | Complex | Array | Matrix | Unit}
+   * @return {number | BigNumber | bigint | Fraction | Complex | Array | Matrix | Unit}
    *            Absolute value of `x`
    */
-  const abs = typed('abs', {
-    'number': Math.abs,
+  return typed(name, {
+    number: absNumber,
 
-    'Complex': function (x) {
-      return x.abs()
-    },
+    'Complex | BigNumber | Fraction | Unit': x => x.abs(),
 
-    'BigNumber': function (x) {
-      return x.abs()
-    },
+    bigint: x => x < 0n ? -x : x,
 
-    'Fraction': function (x) {
-      return x.abs()
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since abs(0) = 0
-      return deepMap(x, abs, true)
-    },
-
-    'Unit': function (x) {
-      return x.abs()
-    }
+    // deep map collection, skip zeros since abs(0) = 0
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self, true))
   })
-
-  abs.toTex = { 1: `\\left|\${args[0]}\\right|` }
-
-  return abs
-}
-
-exports.name = 'abs'
-exports.factory = factory
+})

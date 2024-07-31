@@ -1,9 +1,11 @@
-'use strict'
+import { deepMap } from '../../utils/collection.js'
+import { isInteger as isIntegerNumber } from '../../utils/number.js'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
-const number = require('../../utils/number')
+const name = 'isInteger'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createIsInteger = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Test whether a value is an integer number.
    * The function supports `number`, `BigNumber`, and `Fraction`.
@@ -23,34 +25,31 @@ function factory (type, config, load, typed) {
    *    math.isInteger(math.fraction(4))      // returns true
    *    math.isInteger('3')                   // returns true
    *    math.isInteger([3, 0.5, -2])          // returns [true, false, true]
-   *    math.isInteger(math.complex('2-4i')   // throws an error
+   *    math.isInteger(math.complex('2-4i'))  // throws an error
    *
    * See also:
    *
    *    isNumeric, isPositive, isNegative, isZero
    *
-   * @param {number | BigNumber | Fraction | Array | Matrix} x   Value to be tested
+   * @param {number | BigNumber | bigint | Fraction | Array | Matrix} x   Value to be tested
    * @return {boolean}  Returns true when `x` contains a numeric, integer value.
    *                    Throws an error in case of an unknown data type.
    */
-  const isInteger = typed('isInteger', {
-    'number': number.isInteger, // TODO: what to do with isInteger(add(0.1, 0.2))  ?
+  return typed(name, {
+    number: isIntegerNumber, // TODO: what to do with isInteger(add(0.1, 0.2))  ?
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.isInt()
     },
 
-    'Fraction': function (x) {
+    bigint: function (x) {
+      return true
+    },
+
+    Fraction: function (x) {
       return x.d === 1 && isFinite(x.n)
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, isInteger)
-    }
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  return isInteger
-}
-
-exports.name = 'isInteger'
-exports.factory = factory
+})

@@ -1,29 +1,24 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { errorTransform } from './utils/errorTransform.js'
+import { createMin } from '../../function/statistics/min.js'
+import { lastDimToZeroBase } from './utils/lastDimToZeroBase.js'
 
-const errorTransform = require('./error.transform').transform
-const isCollection = require('../../utils/collection/isCollection')
+const name = 'min'
+const dependencies = ['typed', 'config', 'numeric', 'smaller']
 
-/**
- * Attach a transform function to math.min
- * Adds a property transform containing the transform function.
- *
- * This transform changed the last `dim` parameter of function min
- * from one-based to zero based
- */
-function factory (type, config, load, typed) {
-  const min = load(require('../../function/statistics/min'))
+export const createMinTransform = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, numeric, smaller }) => {
+  const min = createMin({ typed, config, numeric, smaller })
 
+  /**
+   * Attach a transform function to math.min
+   * Adds a property transform containing the transform function.
+   *
+   * This transform changed the last `dim` parameter of function min
+   * from one-based to zero based
+   */
   return typed('min', {
     '...any': function (args) {
-      // change last argument dim from one-based to zero-based
-      if (args.length === 2 && isCollection(args[0])) {
-        const dim = args[1]
-        if (type.isNumber(dim)) {
-          args[1] = dim - 1
-        } else if (type.isBigNumber(dim)) {
-          args[1] = dim.minus(1)
-        }
-      }
+      args = lastDimToZeroBase(args)
 
       try {
         return min.apply(null, args)
@@ -32,8 +27,4 @@ function factory (type, config, load, typed) {
       }
     }
   })
-}
-
-exports.name = 'min'
-exports.path = 'expression.transform'
-exports.factory = factory
+}, { isTransformFunction: true })

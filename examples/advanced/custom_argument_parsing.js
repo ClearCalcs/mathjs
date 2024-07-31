@@ -7,7 +7,8 @@
  * will be invoked with unevaluated arguments, allowing the function
  * to process the arguments in a customized way.
  */
-const math = require('../../index')
+import { create, all } from '../../lib/esm/index.js'
+const math = create(all)
 
 /**
  * Calculate the numeric integration of a function
@@ -36,13 +37,13 @@ function integrate (f, start, end, step) {
  *
  * Usage:
  *
- *     math.eval('integrate(2*x, x, 0, 2)')
- *     math.eval('integrate(2*x, x, 0, 2, 0.01)')
+ *     math.evaluate('integrate(2*x, x, 0, 2)')
+ *     math.evaluate('integrate(2*x, x, 0, 2, 0.01)')
  *
- * @param {Array.<math.expression.node.Node>} args
+ * @param {Array.<math.Node>} args
  *            Expects the following arguments: [f, x, start, end, step]
  * @param {Object} math
- * @param {Object} [scope]
+ * @param {Map} [scope]
  */
 integrate.transform = function (args, math, scope) {
   // determine the variable name
@@ -52,20 +53,16 @@ integrate.transform = function (args, math, scope) {
   const variable = args[1].name
 
   // evaluate start, end, and step
-  const start = args[2].compile().eval(scope)
-  const end = args[3].compile().eval(scope)
-  const step = args[4] && args[4].compile().eval(scope) // step is optional
-
-  // create a new scope, linked to the provided scope. We use this new scope
-  // to apply the variable.
-  const fnScope = Object.create(scope)
+  const start = args[2].compile().evaluate(scope)
+  const end = args[3].compile().evaluate(scope)
+  const step = args[4] && args[4].compile().evaluate(scope) // step is optional
 
   // construct a function which evaluates the first parameter f after applying
   // a value for parameter x.
   const fnCode = args[0].compile()
   const f = function (x) {
-    fnScope[variable] = x
-    return fnCode.eval(fnScope)
+    scope.set(variable, x)
+    return fnCode.evaluate(scope)
   }
 
   // execute the integration
@@ -77,9 +74,9 @@ integrate.transform = function (args, math, scope) {
 integrate.transform.rawArgs = true
 
 // import the function into math.js. Raw functions must be imported in the
-// math namespace, they can't be used via `eval(scope)`.
+// math namespace, they can't be used via `evaluate(scope)`.
 math.import({
-  integrate: integrate
+  integrate
 })
 
 // use the function in JavaScript
@@ -89,9 +86,9 @@ function f (x) {
 console.log(math.integrate(f, 0, 1)) // outputs 0.6667254718034714
 
 // use the function via the expression parser
-console.log(math.eval('integrate(x^0.5, x, 0, 1)')) // outputs 0.6667254718034714
+console.log(math.evaluate('integrate(x^0.5, x, 0, 1)')) // outputs 0.6667254718034714
 
 // use the function via the expression parser (2)
-let scope = {}
-math.eval('f(x) = 2 * x', scope)
-console.log(math.eval('integrate(f(x), x, 0, 2)', scope)) // outputs 4.000000000000003
+const scope = new Map()
+math.evaluate('f(x) = 2 * x', scope)
+console.log(math.evaluate('integrate(f(x), x, 0, 2)', scope)) // outputs 4.000000000000003

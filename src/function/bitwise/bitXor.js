@@ -1,18 +1,24 @@
-'use strict'
+import { bitXor as bigBitXor } from '../../utils/bignumber/bitwise.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo07xSSf } from '../../type/matrix/utils/matAlgo07xSSf.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { factory } from '../../utils/factory.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
+import { bitXorNumber } from '../../plain/number/index.js'
 
-const isInteger = require('../../utils/number').isInteger
-const bigBitXor = require('../../utils/bignumber/bitXor')
+const name = 'bitXor'
+const dependencies = [
+  'typed',
+  'matrix',
+  'DenseMatrix',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm07 = load(require('../../type/matrix/utils/algorithm07'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createBitXor = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, DenseMatrix, concat }) => {
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo07xSSf = createMatAlgo07xSSf({ typed, DenseMatrix })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Bitwise XOR two values, `x ^ y`.
@@ -32,86 +38,21 @@ function factory (type, config, load, typed) {
    *
    *    bitAnd, bitNot, bitOr, leftShift, rightArithShift, rightLogShift
    *
-   * @param  {number | BigNumber | Array | Matrix} x First value to xor
-   * @param  {number | BigNumber | Array | Matrix} y Second value to xor
-   * @return {number | BigNumber | Array | Matrix} XOR of `x` and `y`
+   * @param  {number | BigNumber | bigint | Array | Matrix} x First value to xor
+   * @param  {number | BigNumber | bigint | Array | Matrix} y Second value to xor
+   * @return {number | BigNumber | bigint | Array | Matrix} XOR of `x` and `y`
    */
-  const bitXor = typed('bitXor', {
-
-    'number, number': function (x, y) {
-      if (!isInteger(x) || !isInteger(y)) {
-        throw new Error('Integers expected in function bitXor')
-      }
-
-      return x ^ y
+  return typed(
+    name,
+    {
+      'number, number': bitXorNumber,
+      'BigNumber, BigNumber': bigBitXor,
+      'bigint, bigint': (x, y) => x ^ y
     },
-
-    'BigNumber, BigNumber': bigBitXor,
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm07(x, y, bitXor)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm03(y, x, bitXor, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, bitXor, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, bitXor)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return bitXor(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return bitXor(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return bitXor(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm12(x, y, bitXor, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, bitXor, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm12(y, x, bitXor, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, bitXor, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, bitXor, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, bitXor, true).valueOf()
-    }
-  })
-
-  bitXor.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['bitXor']}\${args[1]}\\right)`
-  }
-
-  return bitXor
-}
-
-exports.name = 'bitXor'
-exports.factory = factory
+    matrixAlgorithmSuite({
+      SS: matAlgo07xSSf,
+      DS: matAlgo03xDSf,
+      Ss: matAlgo12xSfs
+    })
+  )
+})

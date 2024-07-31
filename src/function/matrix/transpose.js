@@ -1,16 +1,11 @@
-'use strict'
+import { clone } from '../../utils/object.js'
+import { format } from '../../utils/string.js'
+import { factory } from '../../utils/factory.js'
 
-const clone = require('../../utils/object').clone
-const format = require('../../utils/string').format
+const name = 'transpose'
+const dependencies = ['typed', 'matrix']
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
-  const DenseMatrix = type.DenseMatrix
-  const SparseMatrix = type.SparseMatrix
-
+export const createTranspose = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix }) => {
   /**
    * Transpose a matrix. All values of the matrix are reflected over its
    * main diagonal. Only applicable to two dimensional matrices containing
@@ -33,28 +28,28 @@ function factory (type, config, load, typed) {
    * @param {Array | Matrix} x  Matrix to be transposed
    * @return {Array | Matrix}   The transposed matrix
    */
-  const transpose = typed('transpose', {
+  return typed(name, {
+    Array: x => transposeMatrix(matrix(x)).valueOf(),
+    Matrix: transposeMatrix,
+    any: clone // scalars
+  })
 
-    'Array': function (x) {
-      // use dense matrix implementation
-      return transpose(matrix(x)).valueOf()
-    },
+  function transposeMatrix (x) {
+    // matrix size
+    const size = x.size()
 
-    'Matrix': function (x) {
-      // matrix size
-      const size = x.size()
+    // result
+    let c
 
-      // result
-      let c
+    // process dimensions
+    switch (size.length) {
+      case 1:
+        // vector
+        c = x.clone()
+        break
 
-      // process dimensions
-      switch (size.length) {
-        case 1:
-          // vector
-          c = x.clone()
-          break
-
-        case 2:
+      case 2:
+        {
           // rows and columns
           const rows = size[0]
           const columns = size[1]
@@ -74,20 +69,15 @@ function factory (type, config, load, typed) {
               c = _sparseTranspose(x, rows, columns)
               break
           }
-          break
+        }
+        break
 
-        default:
-          // multi dimensional
-          throw new RangeError('Matrix must be a vector or two dimensional (size: ' + format(this._size) + ')')
-      }
-      return c
-    },
-
-    // scalars
-    'any': function (x) {
-      return clone(x)
+      default:
+        // multi dimensional
+        throw new RangeError('Matrix must be a vector or two dimensional (size: ' + format(size) + ')')
     }
-  })
+    return c
+  }
 
   function _denseTranspose (m, rows, columns) {
     // matrix array
@@ -106,7 +96,7 @@ function factory (type, config, load, typed) {
       }
     }
     // return matrix
-    return new DenseMatrix({
+    return m.createDenseMatrix({
       data: transposed,
       size: [columns, rows],
       datatype: m._datatype
@@ -158,7 +148,7 @@ function factory (type, config, load, typed) {
       }
     }
     // return matrix
-    return new SparseMatrix({
+    return m.createSparseMatrix({
       values: cvalues,
       index: cindex,
       ptr: cptr,
@@ -166,11 +156,4 @@ function factory (type, config, load, typed) {
       datatype: m._datatype
     })
   }
-
-  transpose.toTex = { 1: `\\left(\${args[0]}\\right)${latex.operators['transpose']}` }
-
-  return transpose
-}
-
-exports.name = 'transpose'
-exports.factory = factory
+})

@@ -1,29 +1,30 @@
-'use strict'
+import { applyCallback } from '../../utils/applyCallback.js'
+import { map } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
+import { isFunctionAssignmentNode, isSymbolNode } from '../../utils/is.js'
+import { compileInlineExpression } from './utils/compileInlineExpression.js'
 
-const maxArgumentCount = require('../../utils/function').maxArgumentCount
-const map = require('../../utils/array').map
+const name = 'map'
+const dependencies = ['typed']
 
-/**
- * Attach a transform function to math.map
- * Adds a property transform containing the transform function.
- *
- * This transform creates a one-based index instead of a zero-based index
- */
-function factory (type, config, load, typed) {
-  const compileInlineExpression = load(require('./utils/compileInlineExpression'))
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createMapTransform = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
+  /**
+   * Attach a transform function to math.map
+   * Adds a property transform containing the transform function.
+   *
+   * This transform creates a one-based index instead of a zero-based index
+   */
   function mapTransform (args, math, scope) {
     let x, callback
 
     if (args[0]) {
-      x = args[0].compile().eval(scope)
+      x = args[0].compile().evaluate(scope)
     }
 
     if (args[1]) {
-      if (type.isSymbolNode(args[1]) || type.isFunctionAssignmentNode(args[1])) {
+      if (isSymbolNode(args[1]) || isFunctionAssignmentNode(args[1])) {
         // a function pointer, like filter([3, -2, 5], myTestFunction)
-        callback = args[1].compile().eval(scope)
+        callback = args[1].compile().evaluate(scope)
       } else {
         // an expression like filter([3, -2, 5], x > 0)
         callback = compileInlineExpression(args[1], math, scope)
@@ -35,21 +36,21 @@ function factory (type, config, load, typed) {
   mapTransform.rawArgs = true
 
   // one-based version of map function
-  let map = typed('map', {
+  const map = typed('map', {
     'Array, function': function (x, callback) {
       return _map(x, callback, x)
     },
 
     'Matrix, function': function (x, callback) {
-      return matrix(_map(x.valueOf(), callback, x))
+      return x.create(_map(x.valueOf(), callback, x), x.datatype())
     }
   })
 
   return mapTransform
-}
+}, { isTransformFunction: true })
 
 /**
- * Map for a multi dimensional array. One-based indexes
+ * Map for a multidimensional array. One-based indexes
  * @param {Array} array
  * @param {function} callback
  * @param {Array} orig
@@ -57,9 +58,6 @@ function factory (type, config, load, typed) {
  * @private
  */
 function _map (array, callback, orig) {
-  // figure out what number of arguments the callback function expects
-  const argsCount = maxArgumentCount(callback)
-
   function recurse (value, index) {
     if (Array.isArray(value)) {
       return map(value, function (child, i) {
@@ -68,19 +66,9 @@ function _map (array, callback, orig) {
       })
     } else {
       // invoke the (typed) callback function with the right number of arguments
-      if (argsCount === 1) {
-        return callback(value)
-      } else if (argsCount === 2) {
-        return callback(value, index)
-      } else { // 3 or -1
-        return callback(value, index, orig)
-      }
+      return applyCallback(callback, value, index, orig, 'map')
     }
   }
 
   return recurse(array, [])
 }
-
-exports.name = 'map'
-exports.path = 'expression.transform'
-exports.factory = factory

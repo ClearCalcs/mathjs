@@ -1,22 +1,14 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
 
-function factory () {
-  /**
-   * Checks if the node at w[j] is marked
-   *
-   * @param {Array}   w               The array
-   * @param {Number}  j               The array index
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
-   */
-  const csMarked = function (w, j) {
-    // check node is marked
-    return w[j] < 0
-  }
-
-  return csMarked
+/**
+ * Checks if the node at w[j] is marked
+ *
+ * @param {Array}   w               The array
+ * @param {Number}  j               The array index
+ */
+export function csMarked (w, j) {
+  // check node is marked
+  return w[j] < 0
 }
-
-exports.name = 'csMarked'
-exports.path = 'algebra.sparse'
-exports.factory = factory

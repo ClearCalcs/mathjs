@@ -5,10 +5,11 @@
  * The tool can parse documentation information from the block comment in the
  * functions code, and generate a markdown file with the documentation.
  */
-const fs = require('fs')
-const glob = require('glob')
-const mkdirp = require('mkdirp')
-const gutil = require('gulp-util')
+import fs from 'node:fs'
+import { glob } from 'glob'
+import { mkdirp } from 'mkdirp'
+import { deleteSync } from 'del'
+import log from 'fancy-log'
 
 // special cases for function syntax
 const SYNTAX = {
@@ -23,7 +24,7 @@ const SYNTAX = {
   matrix: 'math.matrix(x)',
   sparse: 'math.sparse(x)',
   unit: 'math.unit(x)',
-  eval: 'math.eval(expr [, scope])',
+  evaluate: 'math.evaluate(expr [, scope])',
   parse: 'math.parse(expr [, scope])',
   concat: 'math.concat(a, b, c, ... [, dim])',
   ones: 'math.ones(m, n, p, ...)',
@@ -36,16 +37,21 @@ const SYNTAX = {
   random: 'math.random([min, max])',
   randomInt: 'math.randomInt([min, max])',
   format: 'math.format(value [, precision])',
-  'import': 'math.import(object, override)',
+  import: 'math.import(object, override)',
   print: 'math.print(template, values [, precision])'
 }
 
 const IGNORE_FUNCTIONS = {
-  distribution: true
+  addScalar: true,
+  subtractScalar: true,
+  divideScalar: true,
+  multiplyScalar: true,
+  equalScalar: true,
+  eval: true
 }
 
 const IGNORE_WARNINGS = {
-  seeAlso: ['help', 'intersect', 'clone', 'typeof', 'chain', 'import', 'config', 'typed',
+  seeAlso: ['help', 'intersect', 'clone', 'typeOf', 'chain', 'import', 'config', 'typed',
     'distance', 'kldivergence', 'erf'],
   parameters: ['parser'],
   returns: ['forEach', 'import']
@@ -58,19 +64,31 @@ const IGNORE_WARNINGS = {
  *                         describing a math.js function
  * @return {Object} doc    json document
  */
-function generateDoc (name, code) {
+export function generateDoc (name, code) {
   // get block comment from code
-  const match = /\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\//.exec(code)
+  const commentRegex = /\/\*\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\//g
+  // const match = commentRegex.exec(code)
 
-  if (!match) {
+  const comments = findAll(code, commentRegex).map(match => getCommentContents(match[0]))
+
+  // Find the right comment.
+  // First search a comment containing the text "Syntax:" and "Examples:".
+  // If not found, select the first comment
+  const comment = comments.find(comment => {
+    return /\n *syntax: *\n/i.exec(comment) && /\n *examples: *\n/i.exec(comment)
+  }) || comments[0]
+
+  if (!comment) {
     return null
   }
 
   // get text content inside block comment
-  const comment = match[0].replace('/**', '')
-    .replace('*/', '')
-    .replace(/\n\s*\* ?/g, '\n')
-    .replace(/\r/g, '')
+  function getCommentContents (comment) {
+    return comment.replace('/**', '')
+      .replace('*/', '')
+      .replace(/\n\s*\* ?/g, '\n')
+      .replace(/\r/g, '')
+  }
 
   const lines = comment.split('\n')
   let line = ''
@@ -265,6 +283,34 @@ function generateDoc (name, code) {
     return count > 0
   }
 
+  function parseThrows () {
+    let count = 0
+    let match
+    do {
+      match = /\s*@throws\s*\{(.*)}\s*(.*)?$/.exec(line)
+      if (match) {
+        next()
+
+        count++
+        const annotation = {
+          description: (match[2] || '').trim(),
+          type: (match[1] || '').trim()
+        }
+        doc.mayThrow.push(annotation)
+
+        // multi line description (must be non-empty and not start with @param or @return)
+        while (exists() && !empty() && !/^\s*@/.test(line)) {
+          const lineTrim = line.trim()
+          const separator = (lineTrim[0] === '-' ? '</br>' : ' ')
+          annotation.description += separator + lineTrim
+          next()
+        }
+      }
+    } while (match)
+
+    return count > 0
+  }
+
   function parseReturns () {
     const match = /\s*@returns?\s*\{(.*)}\s*(.*)?$/.exec(line)
     if (match) {
@@ -287,7 +333,7 @@ function generateDoc (name, code) {
   }
 
   // initialize doc
-  let doc = {
+  const doc = {
     name: name,
     description: '',
     syntax: [],
@@ -295,7 +341,8 @@ function generateDoc (name, code) {
     examples: [],
     seeAlso: [],
     parameters: [],
-    returns: null
+    returns: null,
+    mayThrow: []
   }
 
   next()
@@ -310,7 +357,8 @@ function generateDoc (name, code) {
         parseExamples() ||
         parseSeeAlso() ||
         parseParameters() ||
-        parseReturns()
+        parseReturns() ||
+        parseThrows()
 
     if (!handled) {
       // skip this line, no one knows what to do with it
@@ -326,11 +374,11 @@ function generateDoc (name, code) {
  * @param {Object} doc
  * @return {String[]} issues
  */
-function validateDoc (doc) {
-  let issues = []
+export function validateDoc (doc) {
+  const issues = []
 
   function ignore (field) {
-    return IGNORE_WARNINGS[field].indexOf(doc.name) !== -1
+    return IGNORE_WARNINGS[field].includes(doc.name)
   }
 
   if (!doc.name) {
@@ -367,6 +415,15 @@ function validateDoc (doc) {
     }
   }
 
+  if (doc.mayThrow && doc.mayThrow.length) {
+    doc.mayThrow.forEach(function (err, index) {
+      if (!err.type) {
+        issues.push(
+          'function "' + doc.name + '": error type missing for throw ' + index)
+      }
+    })
+  }
+
   if (doc.returns) {
     if (!doc.returns.description || !doc.returns.description.trim()) {
       issues.push('function "' + doc.name + '": description missing of returns')
@@ -396,7 +453,7 @@ function validateDoc (doc) {
  *                              under seeAlso
  * @returns {string} markdown   Markdown contents
  */
-function generateMarkdown (doc, functions) {
+export function generateMarkdown (doc, functions) {
   let text = ''
 
   // TODO: should escape HTML characters in text
@@ -436,6 +493,16 @@ function generateMarkdown (doc, functions) {
         '\n\n\n'
   }
 
+  if (doc.mayThrow) {
+    text += '### Throws\n\n' +
+      'Type | Description\n' +
+      '---- | -----------\n' +
+      doc.mayThrow.map(function (t) {
+        return (t.type || '') + ' | ' + t.description
+      }).join('\n') +
+      '\n\n'
+  }
+
   if (doc.examples && doc.examples.length) {
     text += '## Examples\n\n' +
         '```js\n' +
@@ -455,169 +522,211 @@ function generateMarkdown (doc, functions) {
 }
 
 /**
- * Iterate over all source files and generate markdown documents for each of them
- * @param {String} inputPath   Path to /lib/
- * @param {String} outputPath  Path to /docs/reference/functions
- * @param {String} outputRoot  Path to /docs/reference
+ * Delete all generated function docs (*.md)
+ * @param {String} outputPath       Path to /docs/reference/functions
+ * @param {String} outputRoot       Path to /docs/reference
  */
-function iteratePath (inputPath, outputPath, outputRoot) {
+export function cleanup (outputPath, outputRoot) {
+  // cleanup previous docs
+  deleteSync([
+    outputPath + '/*.md',
+    outputRoot + '/functions.md'
+  ])
+}
+
+/**
+ * Iterate over all source files and produce an object with information on
+ * all in-line documentation.
+ * @param {String[]} functionNames  List with all functions exported from the main instance of mathjs
+ * @param {String} inputPath        Path to location of source files
+ * @returns {object} docinfo
+ *     Object whose keys are function names, and whose values are objects with
+ *     keys name, category, fullPath, doc, and issues
+ *     giving the relevant information
+ */
+export function collectDocs (functionNames, inputPath) {
+  function normalizeWindowsPath(path) {
+    return path.replace(/\\/g, '/')
+  }
+
+  // glob doesn't work on Windows, which has \ separators instead of /
+  const linuxInputPath = normalizeWindowsPath(inputPath + '**/*.js')
+  const files = glob.sync(linuxInputPath).sort().map(normalizeWindowsPath)
+
+  // generate path information for each of the files
+  const functions = {} // TODO: change to array
+  files.forEach(function (fullPath) {
+    const path = fullPath.split('/')
+    const name = path.pop().replace(/.js$/, '')
+    const functionIndex = path.indexOf('function')
+    let category
+
+    // Note: determining whether a file is a function and what it's category
+    // is a bit tricky and quite specific to the structure of the code,
+    // we reckon with some edge cases here.
+    if (!path.includes('docs') && functionIndex !== -1) {
+      if (path.includes('expression')) {
+        category = 'expression'
+      } else if (/\/lib\/cjs\/type\/[a-zA-Z0-9_]*\/function/.test(fullPath)) {
+        // for type/bignumber/function/bignumber.js, type/fraction/function/fraction.js, etc
+        category = 'construction'
+      } else if (/\/lib\/cjs\/core\/function/.test(fullPath)) {
+        category = 'core'
+      } else {
+        category = path[functionIndex + 1]
+      }
+    } else if (fullPath.endsWith('/lib/cjs/expression/parse.js')) {
+      // TODO: this is an ugly special case
+      category = 'expression'
+    } else if (path.join('/').endsWith('/lib/cjs/type')) {
+      // for boolean.js, number.js, string.js
+      category = 'construction'
+    }
+
+    if (!functionNames.includes(name) || IGNORE_FUNCTIONS[name]) {
+      category = null
+    }
+
+    if (category) {
+      functions[name] = {
+        name,
+        category,
+        fullPath
+      }
+    } else {
+      // TODO: throw a warning that no category could be found (instead of silently ignoring it).
+      //  Right now, this matches too many functions, so to do that, we first must make the glob matching relevant
+      //  files more specific, and we need to extend the list with functions we want to ignore.
+    }
+  })
+
+  // loop over all files, generate a doc for each of them
+  Object.keys(functions).forEach(name => {
+    const fn = functions[name]
+    const code = String(fs.readFileSync(fn.fullPath))
+
+    const isFunction = (functionNames.includes(name)) && !IGNORE_FUNCTIONS[name]
+    const doc = isFunction ? generateDoc(name, code) : null
+
+    if (isFunction && doc) {
+      fn.doc = doc
+      fn.issues = validateDoc(doc)
+    } else {
+      // log('Ignoring', fn.fullPath)
+      delete functions[name]
+    }
+  })
+  return functions
+}
+
+/**
+ * Iterate over all source files and generate markdown documents for each of them
+ * @param {String[]} functionNames  List with all functions exported from the main instance of mathjs
+ * @param {String} inputPath        Path to /lib/
+ * @param {String} outputPath       Path to /docs/reference/functions
+ * @param {String} outputRoot       Path to /docs/reference
+ */
+export function iteratePath (functionNames, inputPath, outputPath, outputRoot) {
   if (!fs.existsSync(outputPath)) {
     mkdirp.sync(outputPath)
   }
+  const functions = collectDocs(functionNames, inputPath)
+  let issues = []
+  for (const fn of Object.values(functions)) {
+    issues = issues.concat(fn.issues)
+    const markdown = generateMarkdown(fn.doc, functions)
+    fs.writeFileSync(outputPath + '/' + fn.name + '.md', markdown)
+  }
 
-  glob(inputPath + '**/*.js', null, function (err, files) {
-    if (err) {
-      console.error(err)
-      return
-    }
-
-    // generate path information for each of the files
-    let functions = {} // TODO: change to array
-
-    files.forEach(function (fullPath) {
-      const path = fullPath.split('/')
-      const name = path.pop().replace(/.js$/, '')
-      const functionIndex = path.indexOf('function')
-      let category
-
-      // Note: determining whether a file is a function and what it's category
-      // is is a bit tricky and quite specific to the structure of the code,
-      // we reckon with some edge cases here.
-      if (path.indexOf('docs') === -1 && functionIndex !== -1) {
-        if (path.indexOf('expression') !== -1) {
-          category = 'expression'
-        } else if (/^.\/lib\/type\/[a-zA-Z0-9_]*\/function/.test(fullPath)) {
-          category = 'construction'
-        } else if (/^.\/lib\/core\/function/.test(fullPath)) {
-          category = 'core'
-        } else {
-          category = path[functionIndex + 1]
-        }
-      } else if (path.join('/') === './lib/type') {
-        // for boolean.js, number.js, string.js
-        category = 'construction'
-      }
-
-      if (IGNORE_FUNCTIONS[name]) {
-        category = null
-      }
-
-      if (category) {
-        functions[name] = {
-          name: name,
-          category: category,
-          fullPath: fullPath,
-          relativePath: fullPath.substring(inputPath.length)
-        }
-      }
-    })
-
-    // loop over all files, generate a doc for each of them
-    let issues = []
-    for (const name in functions) {
-      if (functions.hasOwnProperty(name)) {
-        const fn = functions[name]
-        const code = String(fs.readFileSync(fn.fullPath))
-
-        const isFunction = /\nexports.name/g.test(code) &&
-            /\nexports.factory/g.test(code) &&
-            !/\nexports.path/g.test(code)
-        const doc = isFunction && generateDoc(name, code)
-
-        if (isFunction && doc) {
-          fn.doc = doc
-          issues = issues.concat(validateDoc(doc))
-          const markdown = generateMarkdown(doc, functions)
-          fs.writeFileSync(outputPath + '/' + fn.name + '.md', markdown)
-        } else {
-          // gutil.log('Ignoring', fn.fullPath)
-          delete functions[name]
-        }
-      }
-    }
-
-    /**
-     * Helper function to generate a markdown list entry for a function.
-     * Used to generate both alphabetical and categorical index pages.
-     * @param {string} name Function name
+  /**
+   * Helper function to generate a markdown list entry for a function.
+   * Used to generate both alphabetical and categorical index pages.
+   * @param {string} name Function name
      * @returns {string}    Returns a markdown list entry
      */
-    function functionEntry (name) {
-      const fn = functions[name]
-      let syntax = SYNTAX[name] || (fn.doc && fn.doc.syntax && fn.doc.syntax[0]) || name
-      syntax = syntax
-        // .replace(/^math\./, '')
-        .replace(/\s+\/\/.*$/, '')
-        .replace(/;$/, '')
-      if (syntax.length < 40) {
-        syntax = syntax.replace(/ /g, '&nbsp;')
-      }
-
-      let description = ''
-      if (fn.doc.description) {
-        description = fn.doc.description.replace(/\n/g, ' ').split('.')[0] + '.'
-      }
-
-      return '[' + syntax + '](functions/' + name + '.md) | ' + description
+  function functionEntry (name) {
+    const fn = functions[name]
+    let syntax = SYNTAX[name] || (fn.doc && fn.doc.syntax && fn.doc.syntax[0]) || name
+    syntax = syntax
+      // .replace(/^math\./, '')
+      .replace(/\s+\/\/.*$/, '')
+      .replace(/;$/, '')
+    if (syntax.length < 40) {
+      syntax = syntax.replace(/ /g, '&nbsp;')
     }
 
-    /**
-     * Change the first letter of the given string to upper case
-     * @param {string} text
-     */
-    function toCapital (text) {
-      return text[0].toUpperCase() + text.slice(1)
+    let description = ''
+    if (fn.doc.description) {
+      description = fn.doc.description.replace(/\n/g, ' ').split('.')[0] + '.'
     }
 
-    const order = ['core', 'construction', 'expression'] // and then the rest
-    function categoryIndex (entry) {
-      const index = order.indexOf(entry)
-      return index === -1 ? Infinity : index
-    }
-    function compareAsc (a, b) {
-      return a > b ? 1 : (a < b ? -1 : 0)
-    }
-    function compareCategory (a, b) {
-      const indexA = categoryIndex(a)
-      const indexB = categoryIndex(b)
-      return (indexA > indexB) ? 1 : (indexA < indexB ? -1 : compareAsc(a, b))
-    }
+    return '[' + syntax + '](functions/' + name + '.md) | ' + description
+  }
 
-    // generate categorical page with all functions
-    let categories = {}
-    Object.keys(functions).forEach(function (name) {
-      const fn = functions[name]
-      const category = categories[fn.category]
-      if (!category) {
-        categories[fn.category] = {}
-      }
-      categories[fn.category][name] = fn
-    })
-    let categorical = '# Function reference\n\n'
-    categorical += Object.keys(categories).sort(compareCategory).map(function (category) {
-      const functions = categories[category]
+  /**
+   * Change the first letter of the given string to upper case
+   * @param {string} text
+   */
+  function toCapital (text) {
+    return text[0].toUpperCase() + text.slice(1)
+  }
 
-      return '## ' + toCapital(category) + ' functions\n\n' +
-          'Function | Description\n' +
-          '---- | -----------\n' +
-        Object.keys(functions).sort().map(functionEntry).join('\n') + '\n'
-    }).join('\n')
-    categorical += '\n\n\n<!-- Note: This file is automatically generated from source code comments. Changes made in this file will be overridden. -->\n'
+  const order = ['core', 'construction', 'expression'] // and then the rest
+  function categoryIndex (entry) {
+    const index = order.indexOf(entry)
+    return index === -1 ? Infinity : index
+  }
+  function compareAsc (a, b) {
+    return a > b ? 1 : (a < b ? -1 : 0)
+  }
+  function compareCategory (a, b) {
+    const indexA = categoryIndex(a)
+    const indexB = categoryIndex(b)
+    return (indexA > indexB) ? 1 : (indexA < indexB ? -1 : compareAsc(a, b))
+  }
 
-    fs.writeFileSync(outputRoot + '/' + 'functions.md', categorical)
-
-    // output all issues
-    if (issues.length) {
-      issues.forEach(function (issue) {
-        gutil.log('Warning: ' + issue)
-      })
-      gutil.log(issues.length + ' warnings')
+  // generate categorical page with all functions
+  const categories = {}
+  Object.keys(functions).forEach(function (name) {
+    const fn = functions[name]
+    const category = categories[fn.category]
+    if (!category) {
+      categories[fn.category] = {}
     }
+    categories[fn.category][name] = fn
   })
+  let categorical = '# Function reference\n\n'
+  categorical += Object.keys(categories).sort(compareCategory).map(function (category) {
+    const functions = categories[category]
+
+    return '## ' + toCapital(category) + ' functions\n\n' +
+      'Function | Description\n' +
+      '---- | -----------\n' +
+      Object.keys(functions).sort().map(functionEntry).join('\n') + '\n'
+  }).join('\n')
+  categorical += '\n\n\n<!-- Note: This file is automatically generated from source code comments. Changes made in this file will be overridden. -->\n'
+
+  fs.writeFileSync(outputRoot + '/' + 'functions.md', categorical)
+
+  // output all issues
+  if (issues.length) {
+    issues.forEach(function (issue) {
+      log('Warning: ' + issue)
+    })
+    log(issues.length + ' warnings')
+  }
 }
 
-// exports
-exports.iteratePath = iteratePath
-exports.generateDoc = generateDoc
-exports.validateDoc = validateDoc
-exports.generateMarkdown = generateMarkdown
+function findAll (text, regex) {
+  const matches = []
+  let match
+
+  do {
+    match = regex.exec(text)
+    if (match) {
+      matches.push(match)
+    }
+  } while (match)
+
+  return matches
+}

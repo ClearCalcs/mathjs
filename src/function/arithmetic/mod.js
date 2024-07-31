@@ -1,16 +1,32 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createFloor } from './floor.js'
+import { createMatAlgo02xDS0 } from '../../type/matrix/utils/matAlgo02xDS0.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo05xSfSf } from '../../type/matrix/utils/matAlgo05xSfSf.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const latex = require('../../utils/latex')
+const name = 'mod'
+const dependencies = [
+  'typed',
+  'config',
+  'round',
+  'matrix',
+  'equalScalar',
+  'zeros',
+  'DenseMatrix',
+  'concat'
+]
 
-  const algorithm02 = load(require('../../type/matrix/utils/algorithm02'))
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm05 = load(require('../../type/matrix/utils/algorithm05'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createMod = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, round, matrix, equalScalar, zeros, DenseMatrix, concat }) => {
+  const floor = createFloor({ typed, config, round, matrix, equalScalar, zeros, DenseMatrix })
+  const matAlgo02xDS0 = createMatAlgo02xDS0({ typed, equalScalar })
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo05xSfSf = createMatAlgo05xSfSf({ typed, equalScalar })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Calculates the modulus, the remainder of an integer division.
@@ -21,7 +37,7 @@ function factory (type, config, load, typed) {
    *
    *     x - y * floor(x / y)
    *
-   * See http://en.wikipedia.org/wiki/Modulo_operation.
+   * See https://en.wikipedia.org/wiki/Modulo_operation.
    *
    * Syntax:
    *
@@ -43,107 +59,59 @@ function factory (type, config, load, typed) {
    *
    *    divide
    *
-   * @param  {number | BigNumber | Fraction | Array | Matrix} x Dividend
-   * @param  {number | BigNumber | Fraction | Array | Matrix} y Divisor
-   * @return {number | BigNumber | Fraction | Array | Matrix} Returns the remainder of `x` divided by `y`.
+   * @param  {number | BigNumber | bigint | Fraction | Array | Matrix} x Dividend
+   * @param  {number | BigNumber | bigint | Fraction | Array | Matrix} y Divisor
+   * @return {number | BigNumber | bigint | Fraction | Array | Matrix} Returns the remainder of `x` divided by `y`.
    */
-  const mod = typed('mod', {
+  return typed(
+    name,
+    {
+      'number, number': _modNumber,
 
-    'number, number': _mod,
+      'BigNumber, BigNumber': function (x, y) {
+        return y.isZero() ? x : x.sub(y.mul(floor(x.div(y))))
+      },
 
-    'BigNumber, BigNumber': function (x, y) {
-      return y.isZero() ? x : x.mod(y)
+      'bigint, bigint': function (x, y) {
+        if (y === 0n) {
+          return x
+        }
+
+        if (x < 0) {
+          const m = x % y
+          return m === 0n ? m : m + y
+        }
+
+        return x % y
+      },
+
+      'Fraction, Fraction': function (x, y) {
+        return y.equals(0) ? x : x.sub(y.mul(floor(x.div(y))))
+      }
     },
-
-    'Fraction, Fraction': function (x, y) {
-      return x.mod(y)
-    },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm05(x, y, mod, false)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm02(y, x, mod, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, mod, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, mod)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return mod(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return mod(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return mod(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm11(x, y, mod, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, mod, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm12(y, x, mod, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, mod, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, mod, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, mod, true).valueOf()
-    }
-  })
-
-  mod.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['mod']}\${args[1]}\\right)`
-  }
-
-  return mod
+    matrixAlgorithmSuite({
+      SS: matAlgo05xSfSf,
+      DS: matAlgo03xDSf,
+      SD: matAlgo02xDS0,
+      Ss: matAlgo11xS0s,
+      sS: matAlgo12xSfs
+    })
+  )
 
   /**
-   * Calculate the modulus of two numbers
-   * @param {number} x
-   * @param {number} y
-   * @returns {number} res
-   * @private
-   */
-  function _mod (x, y) {
-    if (y > 0) {
-      // We don't use JavaScript's % operator here as this doesn't work
-      // correctly for x < 0 and x === 0
-      // see http://en.wikipedia.org/wiki/Modulo_operation
-      return x - y * Math.floor(x / y)
-    } else if (y === 0) {
-      return x
-    } else { // y < 0
-      // TODO: implement mod for a negative divisor
-      throw new Error('Cannot calculate mod for a negative divisor')
-    }
-  }
-}
+ * Calculate the modulus of two numbers
+ * @param {number} x
+ * @param {number} y
+ * @returns {number} res
+ * @private
+ */
+  function _modNumber (x, y) {
+    // We don't use JavaScript's % operator here as this doesn't work
+    // correctly for x < 0 and x === 0
+    // see https://en.wikipedia.org/wiki/Modulo_operation
 
-exports.name = 'mod'
-exports.factory = factory
+    // We use mathjs floor to handle errors associated with
+    // precision float approximation
+    return (y === 0) ? x : x - y * floor(x / y)
+  }
+})

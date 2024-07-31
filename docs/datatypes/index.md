@@ -17,7 +17,7 @@ The supported data types are:
 - [Unit](units.md)
 - String
 
-Function [`math.typeof(x)`](../reference/functions/typeof.md) can be used to get
+Function [`math.typeOf(x)`](../reference/functions/typeOf.md) can be used to get
 the type of a variable.
 
 Example usage:
@@ -30,6 +30,9 @@ math.sqrt(4.41e2)                // 21
 
 // use BigNumbers
 math.add(math.bignumber(0.1), math.bignumber(0.2)) // BigNumber, 0.3
+
+// use bigint
+math.add(300000000000000000n, 1n) // 300000000000000001n
 
 // use Fractions
 math.add(math.fraction(1), math.fraction(3)) // Fraction, 0.(3)
@@ -61,7 +64,7 @@ const b = math.unit('0.1m')      // 100 mm
 math.add(a, b)                   // 0.65 m
 
 // check the type of a variable
-math.typeof(2)                   // 'number'
-math.typeof(math.unit('2 inch')) // 'Unit'
-math.typeof(math.sqrt(-4))       // 'Complex'
+math.typeOf(2)                   // 'number'
+math.typeOf(math.unit('2 inch')) // 'Unit'
+math.typeOf(math.sqrt(-4))       // 'Complex'
 ```

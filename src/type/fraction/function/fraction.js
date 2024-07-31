@@ -1,73 +1,90 @@
-'use strict'
+import { factory } from '../../../utils/factory.js'
+import { deepMap } from '../../../utils/collection.js'
 
-const deepMap = require('../../../utils/collection/deepMap')
+const name = 'fraction'
+const dependencies = ['typed', 'Fraction']
 
-function factory (type, config, load, typed) {
+export const createFraction = /* #__PURE__ */ factory(name, dependencies, ({ typed, Fraction }) => {
   /**
-   * Create a fraction convert a value to a fraction.
+   * Create a fraction or convert a value to a fraction.
+   *
+   * With one numeric argument, produces the closest rational approximation to the
+   * input.
+   * With two arguments, the first is the numerator and the second is the denominator,
+   * and creates the corresponding fraction. Both numerator and denominator must be
+   * integers.
+   * With one object argument, looks for the integer numerator as the value of property
+   * 'n' and the integer denominator as the value of property 'd'.
+   * With a matrix argument, creates a matrix of the same shape with entries
+   * converted into fractions.
    *
    * Syntax:
+   *     math.fraction(value)
    *     math.fraction(numerator, denominator)
    *     math.fraction({n: numerator, d: denominator})
-   *     math.fraction(matrix: Array | Matrix)         Turn all matrix entries
-   *                                                   into fractions
+   *     math.fraction(matrix: Array | Matrix)
    *
    * Examples:
    *
-   *     math.fraction(1, 3)
-   *     math.fraction('2/3')
-   *     math.fraction({n: 2, d: 3})
-   *     math.fraction([0.2, 0.25, 1.25])
+   *     math.fraction(6.283)             // returns Fraction 6283/1000
+   *     math.fraction(1, 3)              // returns Fraction 1/3
+   *     math.fraction('2/3')             // returns Fraction 2/3
+   *     math.fraction({n: 2, d: 3})      // returns Fraction 2/3
+   *     math.fraction([0.2, 0.25, 1.25]) // returns Array [1/5, 1/4, 5/4]
+   *     math.fraction(4, 5.1)            // throws Error: Parameters must be integer
    *
    * See also:
    *
    *    bignumber, number, string, unit
    *
-   * @param {number | string | Fraction | BigNumber | Array | Matrix} [args]
-   *            Arguments specifying the numerator and denominator of
+   * @param {number | string | Fraction | BigNumber | bigint | Unit | Array | Matrix} [args]
+   *            Arguments specifying the value, or numerator and denominator of
    *            the fraction
    * @return {Fraction | Array | Matrix} Returns a fraction
    */
-  const fraction = typed('fraction', {
-    'number': function (x) {
+  return typed('fraction', {
+    number: function (x) {
       if (!isFinite(x) || isNaN(x)) {
         throw new Error(x + ' cannot be represented as a fraction')
       }
 
-      return new type.Fraction(x)
+      return new Fraction(x)
     },
 
-    'string': function (x) {
-      return new type.Fraction(x)
+    string: function (x) {
+      return new Fraction(x)
     },
 
     'number, number': function (numerator, denominator) {
-      return new type.Fraction(numerator, denominator)
+      return new Fraction(numerator, denominator)
     },
 
-    'null': function (x) {
-      return new type.Fraction(0)
+    null: function (x) {
+      return new Fraction(0)
     },
 
-    'BigNumber': function (x) {
-      return new type.Fraction(x.toString())
+    BigNumber: function (x) {
+      return new Fraction(x.toString())
     },
 
-    'Fraction': function (x) {
+    bigint: function (x) {
+      return new Fraction(x.toString())
+    },
+
+    Fraction: function (x) {
       return x // fractions are immutable
     },
 
-    'Object': function (x) {
-      return new type.Fraction(x)
+    Unit: typed.referToSelf(self => (x) => {
+      const clone = x.clone()
+      clone.value = self(x.value)
+      return clone
+    }),
+
+    Object: function (x) {
+      return new Fraction(x)
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, fraction)
-    }
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  return fraction
-}
-
-exports.name = 'fraction'
-exports.factory = factory
+})

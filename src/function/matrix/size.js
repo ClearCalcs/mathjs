@@ -1,10 +1,11 @@
-'use strict'
+import { arraySize } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
+import { noMatrix } from '../../utils/noop.js'
 
-const array = require('../../utils/array')
+const name = 'size'
+const dependencies = ['typed', 'config', '?matrix']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createSize = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, matrix }) => {
   /**
    * Calculate the size of a matrix or scalar.
    *
@@ -14,42 +15,36 @@ function factory (type, config, load, typed) {
    *
    * Examples:
    *
-   *     math.size(2.3)                  // returns []
-   *     math.size('hello world')        // returns [11]
+   *     math.size(2.3)                       // returns []
+   *     math.size('hello world')             // returns [11]
    *
    *     const A = [[1, 2, 3], [4, 5, 6]]
-   *     math.size(A)                    // returns [2, 3]
-   *     math.size(math.range(1,6))      // returns [5]
+   *     math.size(A)                         // returns [2, 3]
+   *     math.size(math.range(1,6).toArray()) // returns [5]
    *
    * See also:
    *
-   *     resize, squeeze, subset
+   *     count, resize, squeeze, subset
    *
    * @param {boolean | number | Complex | Unit | string | Array | Matrix} x  A matrix
    * @return {Array | Matrix} A vector with size of `x`.
    */
-  const size = typed('size', {
-    'Matrix': function (x) {
-      // TODO: return the same matrix type as the input
-      return matrix(x.size())
+  return typed(name, {
+    Matrix: function (x) {
+      return x.create(x.size(), 'number')
     },
 
-    'Array': array.size,
+    Array: arraySize,
 
-    'string': function (x) {
-      return (config.matrix === 'Array') ? [x.length] : matrix([x.length])
+    string: function (x) {
+      return (config.matrix === 'Array') ? [x.length] : matrix([x.length], 'dense', 'number')
     },
 
     'number | Complex | BigNumber | Unit | boolean | null': function (x) {
       // scalar
-      return (config.matrix === 'Array') ? [] : matrix([])
+      return (config.matrix === 'Array')
+        ? []
+        : matrix ? matrix([], 'dense', 'number') : noMatrix()
     }
   })
-
-  size.toTex = undefined // use default template
-
-  return size
-}
-
-exports.name = 'size'
-exports.factory = factory
+})

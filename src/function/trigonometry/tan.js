@@ -1,12 +1,17 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createTrigUnit } from './trigUnit.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'tan'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createTan = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
+  const trigUnit = createTrigUnit({ typed })
+
   /**
    * Calculate the tangent of a value. `tan(x)` is equal to `sin(x) / cos(x)`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix tangent, this function does not apply
+   * to matrices.
    *
    * Syntax:
    *
@@ -23,37 +28,11 @@ function factory (type, config, load, typed) {
    *
    *    atan, sin, cos
    *
-   * @param {number | BigNumber | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} Tangent of x
+   * @param {number | BigNumber | Complex | Unit} x  Function input
+   * @return {number | BigNumber | Complex} Tangent of x
    */
-  const tan = typed('tan', {
-    'number': Math.tan,
-
-    'Complex': function (x) {
-      return x.tan()
-    },
-
-    'BigNumber': function (x) {
-      return x.tan()
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function tan is no angle')
-      }
-      return tan(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since tan(0) = 0
-      return deepMap(x, tan, true)
-    }
-  })
-
-  tan.toTex = { 1: `\\tan\\left(\${args[0]}\\right)` }
-
-  return tan
-}
-
-exports.name = 'tan'
-exports.factory = factory
+  return typed(name, {
+    number: Math.tan,
+    'Complex | BigNumber': x => x.tan()
+  }, trigUnit)
+})

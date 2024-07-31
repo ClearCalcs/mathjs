@@ -1,15 +1,21 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { extend } from '../../utils/object.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo14xDs } from '../../type/matrix/utils/matAlgo14xDs.js'
 
-const extend = require('../../utils/object').extend
+const name = 'divide'
+const dependencies = [
+  'typed',
+  'matrix',
+  'multiply',
+  'equalScalar',
+  'divideScalar',
+  'inv'
+]
 
-function factory (type, config, load, typed) {
-  const divideScalar = load(require('./divideScalar'))
-  const multiply = load(require('./multiply'))
-  const inv = load(require('../matrix/inv'))
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createDivide = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, multiply, equalScalar, divideScalar, inv }) => {
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo14xDs = createMatAlgo14xDs({ typed })
 
   /**
    * Divide two values, `x / y`.
@@ -38,43 +44,36 @@ function factory (type, config, load, typed) {
    *
    *    multiply
    *
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x   Numerator
-   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix} y          Denominator
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix}                      Quotient, `x / y`
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} x   Numerator
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Array | Matrix} y          Denominator
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix}                      Quotient, `x / y`
    */
-  const divide = typed('divide', extend({
+  return typed('divide', extend({
     // we extend the signatures of divideScalar with signatures dealing with matrices
 
     'Array | Matrix, Array | Matrix': function (x, y) {
       // TODO: implement matrix right division using pseudo inverse
-      // http://www.mathworks.nl/help/matlab/ref/mrdivide.html
-      // http://www.gnu.org/software/octave/doc/interpreter/Arithmetic-Ops.html
-      // http://stackoverflow.com/questions/12263932/how-does-gnu-octave-matrix-division-work-getting-unexpected-behaviour
+      // https://www.mathworks.nl/help/matlab/ref/mrdivide.html
+      // https://www.gnu.org/software/octave/doc/interpreter/Arithmetic-Ops.html
+      // https://stackoverflow.com/questions/12263932/how-does-gnu-octave-matrix-division-work-getting-unexpected-behaviour
       return multiply(x, inv(y))
     },
 
     'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, divideScalar, false)
+      return matAlgo14xDs(x, y, divideScalar, false)
     },
 
     'SparseMatrix, any': function (x, y) {
-      return algorithm11(x, y, divideScalar, false)
+      return matAlgo11xS0s(x, y, divideScalar, false)
     },
 
     'Array, any': function (x, y) {
       // use matrix implementation
-      return algorithm14(matrix(x), y, divideScalar, false).valueOf()
+      return matAlgo14xDs(matrix(x), y, divideScalar, false).valueOf()
     },
 
     'any, Array | Matrix': function (x, y) {
       return multiply(x, inv(y))
     }
   }, divideScalar.signatures))
-
-  divide.toTex = { 2: `\\frac{\${args[0]}}{\${args[1]}}` }
-
-  return divide
-}
-
-exports.name = 'divide'
-exports.factory = factory
+})

@@ -1,11 +1,12 @@
-'use strict'
+import { isHelp } from '../utils/is.js'
+import { clone } from '../utils/object.js'
+import { format } from '../utils/string.js'
+import { factory } from '../utils/factory.js'
 
-const object = require('../utils/object')
-const string = require('../utils/string')
+const name = 'Help'
+const dependencies = ['evaluate']
 
-function factory (type, config, load, typed) {
-  const parser = load(require('./function/parser'))()
-
+export const createHelpClass = /* #__PURE__ */ factory(name, dependencies, ({ evaluate }) => {
   /**
    * Documentation object
    * @param {Object} doc  Object containing properties:
@@ -56,6 +57,19 @@ function factory (type, config, load, typed) {
     }
     if (doc.examples) {
       desc += 'Examples:\n'
+
+      // after evaluating the examples, we restore config in case the examples
+      // did change the config.
+      let configChanged = false
+      const originalConfig = evaluate('config()')
+
+      const scope = {
+        config: (newConfig) => {
+          configChanged = true
+          return evaluate('config(newConfig)', { newConfig })
+        }
+      }
+
       for (let i = 0; i < doc.examples.length; i++) {
         const expr = doc.examples[i]
         desc += '    ' + expr + '\n'
@@ -63,15 +77,22 @@ function factory (type, config, load, typed) {
         let res
         try {
           // note: res can be undefined when `expr` is an empty string
-          res = parser.eval(expr)
+          res = evaluate(expr, scope)
         } catch (e) {
           res = e
         }
-        if (res !== undefined && !type.isHelp(res)) {
-          desc += '        ' + string.format(res, { precision: 14 }) + '\n'
+        if (res !== undefined && !isHelp(res)) {
+          desc += '        ' + format(res, { precision: 14 }) + '\n'
         }
       }
       desc += '\n'
+
+      if (configChanged) {
+        evaluate('config(originalConfig)', { originalConfig })
+      }
+    }
+    if (doc.mayThrow && doc.mayThrow.length) {
+      desc += 'Throws: ' + doc.mayThrow.join(', ') + '\n\n'
     }
     if (doc.seealso && doc.seealso.length) {
       desc += 'See also: ' + doc.seealso.join(', ') + '\n'
@@ -84,7 +105,7 @@ function factory (type, config, load, typed) {
    * Export the help object to JSON
    */
   Help.prototype.toJSON = function () {
-    const obj = object.clone(this.doc)
+    const obj = clone(this.doc)
     obj.mathjs = 'Help'
     return obj
   }
@@ -96,11 +117,13 @@ function factory (type, config, load, typed) {
    */
   Help.fromJSON = function (json) {
     const doc = {}
-    for (const prop in json) {
-      if (prop !== 'mathjs') { // ignore mathjs field
+
+    Object.keys(json)
+      .filter(prop => prop !== 'mathjs')
+      .forEach(prop => {
         doc[prop] = json[prop]
-      }
-    }
+      })
+
     return new Help(doc)
   }
 
@@ -110,8 +133,4 @@ function factory (type, config, load, typed) {
   Help.prototype.valueOf = Help.prototype.toString
 
   return Help
-}
-
-exports.name = 'Help'
-exports.path = 'type'
-exports.factory = factory
+}, { isClass: true })

@@ -1,11 +1,15 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { expNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'exp'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createExp = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
-   * Calculate the exponent of a value.
-   * For matrices, the function is evaluated element wise.
+   * Calculate the exponential of a value.
+   * For matrices, if you want the matrix exponential of square matrix, use
+   * the `expm` function; if you want to take the exponential of each element,
+   * see the examples.
    *
    * Syntax:
    *
@@ -17,7 +21,7 @@ function factory (type, config, load, typed) {
    *    math.pow(math.e, 2)          // returns number 7.3890560989306495
    *    math.log(math.exp(2))        // returns number 2
    *
-   *    math.exp([1, 2, 3])
+   *    math.map([1, 2, 3], math.exp)
    *    // returns Array [
    *    //   2.718281828459045,
    *    //   7.3890560989306495,
@@ -26,32 +30,20 @@ function factory (type, config, load, typed) {
    *
    * See also:
    *
-   *    expm1, log, pow
+   *    expm1, expm, log, pow
    *
-   * @param {number | BigNumber | Complex | Array | Matrix} x  A number or matrix to exponentiate
-   * @return {number | BigNumber | Complex | Array | Matrix} Exponent of `x`
+   * @param {number | BigNumber | Complex} x  A number to exponentiate
+   * @return {number | BigNumber | Complex} Exponential of `x`
    */
-  const exp = typed('exp', {
-    'number': Math.exp,
+  return typed(name, {
+    number: expNumber,
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.exp()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.exp()
-    },
-
-    'Array | Matrix': function (x) {
-      // TODO: exp(sparse) should return a dense matrix since exp(0)==1
-      return deepMap(x, exp)
     }
   })
-
-  exp.toTex = { 1: `\\exp\\left(\${args[0]}\\right)` }
-
-  return exp
-}
-
-exports.name = 'exp'
-exports.factory = factory
+})

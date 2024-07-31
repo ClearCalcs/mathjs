@@ -24,14 +24,14 @@ Stores values for a scalar unit and its postfix. (eg `100 mm` or `100 kg`). Alth
 Stores values for a fractional number.
 
 - [Overview](../datatypes/fractions.md)
-- [Class API](https://github.com/infusion/Fraction.js/)
+- [Class API](https://github.com/rawify/Fraction.js)
 
 ## BigNumber
 
 Stores values for a arbitrary-precision floating point number.
 
 - [Overview](../datatypes/bignumbers.md)
-- [Class API](http://mikemcl.github.io/decimal.js/)
+- [Class API](https://mikemcl.github.io/decimal.js/)
 
 
 ## Matrix
@@ -84,4 +84,3 @@ A node in an expression-tree, which can be used to analyze, manipulate, and eval
 - [ParenthesisNode](../expressions/expression_trees.md#parenthesisnode)
 - [RangeNode](../expressions/expression_trees.md#rangenode)
 - [SymbolNode](../expressions/expression_trees.md#symbolnode)
-- [UpdateNode](../expressions/expression_trees.md#updatenode)

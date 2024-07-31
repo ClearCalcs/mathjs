@@ -1,12 +1,12 @@
-'use strict'
+import { bitNotBigNumber } from '../../utils/bignumber/bitwise.js'
+import { deepMap } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
+import { bitNotNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
-const bigBitNot = require('../../utils/bignumber/bitNot')
-const isInteger = require('../../utils/number').isInteger
+const name = 'bitNot'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
+export const createBitNot = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Bitwise NOT value, `~x`.
    * For matrices, the function is evaluated element wise.
@@ -20,37 +20,19 @@ function factory (type, config, load, typed) {
    *
    *    math.bitNot(1)               // returns number -2
    *
-   *    math.bitNot([2, -3, 4])      // returns Array [-3, 2, 5]
+   *    math.bitNot([2, -3, 4])      // returns Array [-3, 2, -5]
    *
    * See also:
    *
    *    bitAnd, bitOr, bitXor, leftShift, rightArithShift, rightLogShift
    *
-   * @param  {number | BigNumber | Array | Matrix} x Value to not
-   * @return {number | BigNumber | Array | Matrix} NOT of `x`
+   * @param  {number | BigNumber | bigint | Array | Matrix} x Value to not
+   * @return {number | BigNumber | bigint | Array | Matrix} NOT of `x`
    */
-  const bitNot = typed('bitNot', {
-    'number': function (x) {
-      if (!isInteger(x)) {
-        throw new Error('Integer expected in function bitNot')
-      }
-
-      return ~x
-    },
-
-    'BigNumber': bigBitNot,
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, bitNot)
-    }
+  return typed(name, {
+    number: bitNotNumber,
+    BigNumber: bitNotBigNumber,
+    bigint: x => ~x,
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  bitNot.toTex = {
-    1: latex.operators['bitNot'] + `\\left(\${args[0]}\\right)`
-  }
-
-  return bitNot
-}
-
-exports.name = 'bitNot'
-exports.factory = factory
+})

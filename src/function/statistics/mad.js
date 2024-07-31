@@ -1,14 +1,11 @@
-'use strict'
+import { flatten } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
+import { improveErrorMessage } from './utils/improveErrorMessage.js'
 
-const flatten = require('../../utils/array').flatten
+const name = 'mad'
+const dependencies = ['typed', 'abs', 'map', 'median', 'subtract']
 
-function factory (type, config, load, typed) {
-  const abs = load(require('../arithmetic/abs'))
-  const map = load(require('../matrix/map'))
-  const median = load(require('../statistics/median'))
-  const subtract = load(require('../arithmetic/subtract'))
-  const improveErrorMessage = load(require('./utils/improveErrorMessage'))
-
+export const createMad = /* #__PURE__ */ factory(name, dependencies, ({ typed, abs, map, median, subtract }) => {
   /**
    * Compute the median absolute deviation of a matrix or a list with values.
    * The median absolute deviation is defined as the median of the absolute
@@ -33,7 +30,7 @@ function factory (type, config, load, typed) {
    *                        A single matrix or multiple scalar values.
    * @return {*} The median absolute deviation.
    */
-  const mad = typed('mad', {
+  return typed(name, {
     // mad([a, b, c, d, ...])
     'Array | Matrix': _mad,
 
@@ -42,10 +39,6 @@ function factory (type, config, load, typed) {
       return _mad(args)
     }
   })
-
-  mad.toTex = undefined // use default template
-
-  return mad
 
   function _mad (array) {
     array = flatten(array.valueOf())
@@ -60,14 +53,11 @@ function factory (type, config, load, typed) {
         return abs(subtract(value, med))
       }))
     } catch (err) {
-      if (err instanceof TypeError && err.message.indexOf('median') !== -1) {
+      if (err instanceof TypeError && err.message.includes('median')) {
         throw new TypeError(err.message.replace('median', 'mad'))
       } else {
         throw improveErrorMessage(err, 'mad')
       }
     }
   }
-}
-
-exports.name = 'mad'
-exports.factory = factory
+})

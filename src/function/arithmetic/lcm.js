@@ -1,15 +1,34 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo02xDS0 } from '../../type/matrix/utils/matAlgo02xDS0.js'
+import { createMatAlgo06xS0S0 } from '../../type/matrix/utils/matAlgo06xS0S0.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
+import { lcmNumber } from '../../plain/number/index.js'
 
-const isInteger = require('../../utils/number').isInteger
+const name = 'lcm'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
+export const createLcm = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, concat }) => {
+  const matAlgo02xDS0 = createMatAlgo02xDS0({ typed, equalScalar })
+  const matAlgo06xS0S0 = createMatAlgo06xS0S0({ typed, equalScalar })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
-  const algorithm02 = load(require('../../type/matrix/utils/algorithm02'))
-  const algorithm06 = load(require('../../type/matrix/utils/algorithm06'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+  const lcmTypes = 'number | BigNumber | Fraction | Matrix | Array'
+  const lcmManySignature = {}
+  lcmManySignature[`${lcmTypes}, ${lcmTypes}, ...${lcmTypes}`] =
+    typed.referToSelf(self => (a, b, args) => {
+      let res = self(a, b)
+      for (let i = 0; i < args.length; i++) {
+        res = self(res, args[i])
+      }
+      return res
+    })
 
   /**
    * Calculate the least common multiple for two or more values or arrays.
@@ -40,85 +59,19 @@ function factory (type, config, load, typed) {
    * @param {... number | BigNumber | Array | Matrix} args  Two or more integer numbers
    * @return {number | BigNumber | Array | Matrix}                           The least common multiple
    */
-  const lcm = typed('lcm', {
-    'number, number': _lcm,
-
-    'BigNumber, BigNumber': _lcmBigNumber,
-
-    'Fraction, Fraction': function (x, y) {
-      return x.lcm(y)
+  return typed(
+    name, {
+      'number, number': lcmNumber,
+      'BigNumber, BigNumber': _lcmBigNumber,
+      'Fraction, Fraction': (x, y) => x.lcm(y)
     },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm06(x, y, lcm)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm02(y, x, lcm, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm02(x, y, lcm, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, lcm)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return lcm(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return lcm(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return lcm(x, matrix(y))
-    },
-
-    'SparseMatrix, number | BigNumber': function (x, y) {
-      return algorithm11(x, y, lcm, false)
-    },
-
-    'DenseMatrix, number | BigNumber': function (x, y) {
-      return algorithm14(x, y, lcm, false)
-    },
-
-    'number | BigNumber, SparseMatrix': function (x, y) {
-      return algorithm11(y, x, lcm, true)
-    },
-
-    'number | BigNumber, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, lcm, true)
-    },
-
-    'Array, number | BigNumber': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, lcm, false).valueOf()
-    },
-
-    'number | BigNumber, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, lcm, true).valueOf()
-    },
-
-    // TODO: need a smarter notation here
-    'Array | Matrix | number | BigNumber, Array | Matrix | number | BigNumber, ...Array | Matrix | number | BigNumber': function (a, b, args) {
-      let res = lcm(a, b)
-      for (let i = 0; i < args.length; i++) {
-        res = lcm(res, args[i])
-      }
-      return res
-    }
-  })
-
-  lcm.toTex = undefined // use default template
-
-  return lcm
+    matrixAlgorithmSuite({
+      SS: matAlgo06xS0S0,
+      DS: matAlgo02xDS0,
+      Ss: matAlgo11xS0s
+    }),
+    lcmManySignature
+  )
 
   /**
    * Calculate lcm for two BigNumbers
@@ -132,11 +85,14 @@ function factory (type, config, load, typed) {
       throw new Error('Parameters in function lcm must be integer numbers')
     }
 
-    if (a.isZero() || b.isZero()) {
-      return new type.BigNumber(0)
+    if (a.isZero()) {
+      return a
+    }
+    if (b.isZero()) {
+      return b
     }
 
-    // http://en.wikipedia.org/wiki/Euclidean_algorithm
+    // https://en.wikipedia.org/wiki/Euclidean_algorithm
     // evaluate lcm here inline to reduce overhead
     const prod = a.times(b)
     while (!b.isZero()) {
@@ -146,35 +102,4 @@ function factory (type, config, load, typed) {
     }
     return prod.div(a).abs()
   }
-}
-
-/**
- * Calculate lcm for two numbers
- * @param {number} a
- * @param {number} b
- * @returns {number} Returns the least common multiple of a and b
- * @private
- */
-function _lcm (a, b) {
-  if (!isInteger(a) || !isInteger(b)) {
-    throw new Error('Parameters in function lcm must be integer numbers')
-  }
-
-  if (a === 0 || b === 0) {
-    return 0
-  }
-
-  // http://en.wikipedia.org/wiki/Euclidean_algorithm
-  // evaluate lcm here inline to reduce overhead
-  let t
-  const prod = a * b
-  while (b !== 0) {
-    t = b
-    b = a % t
-    a = t
-  }
-  return Math.abs(prod / a)
-}
-
-exports.name = 'lcm'
-exports.factory = factory
+})

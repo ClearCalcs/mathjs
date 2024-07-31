@@ -1,14 +1,15 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { logNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'log'
+const dependencies = ['config', 'typed', 'divideScalar', 'Complex']
 
-function factory (type, config, load, typed) {
-  const divideScalar = load(require('./divideScalar'))
-
+export const createLog = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, divideScalar, Complex }) => {
   /**
    * Calculate the logarithm of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix logarithm, this function does not
+   * apply to matrices.
    *
    * Syntax:
    *
@@ -31,54 +32,40 @@ function factory (type, config, load, typed) {
    *
    *    exp, log2, log10, log1p
    *
-   * @param {number | BigNumber | Complex | Array | Matrix} x
+   * @param {number | BigNumber | Complex} x
    *            Value for which to calculate the logarithm.
    * @param {number | BigNumber | Complex} [base=e]
    *            Optional base for the logarithm. If not provided, the natural
    *            logarithm of `x` is calculated.
-   * @return {number | BigNumber | Complex | Array | Matrix}
+   * @return {number | BigNumber | Complex}
    *            Returns the logarithm of `x`
    */
-  const log = typed('log', {
-    'number': function (x) {
+  return typed(name, {
+    number: function (x) {
       if (x >= 0 || config.predictable) {
-        return Math.log(x)
+        return logNumber(x)
       } else {
         // negative value -> complex value computation
-        return new type.Complex(x, 0).log()
+        return new Complex(x, 0).log()
       }
     },
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.log()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       if (!x.isNegative() || config.predictable) {
         return x.ln()
       } else {
         // downgrade to number, return Complex valued result
-        return new type.Complex(x.toNumber(), 0).log()
+        return new Complex(x.toNumber(), 0).log()
       }
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, log)
-    },
-
-    'any, any': function (x, base) {
+    'any, any': typed.referToSelf(self => (x, base) => {
       // calculate logarithm for a specified base, log(x, base)
-      return divideScalar(log(x), log(base))
-    }
+      return divideScalar(self(x), self(base))
+    })
   })
-
-  log.toTex = {
-    1: `\\ln\\left(\${args[0]}\\right)`,
-    2: `\\log_{\${args[1]}}\\left(\${args[0]}\\right)`
-  }
-
-  return log
-}
-
-exports.name = 'log'
-exports.factory = factory
+})

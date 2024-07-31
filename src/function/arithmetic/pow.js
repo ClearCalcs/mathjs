@@ -1,20 +1,29 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { isInteger } from '../../utils/number.js'
+import { arraySize as size } from '../../utils/array.js'
+import { powNumber } from '../../plain/number/index.js'
 
-const isInteger = require('../../utils/number').isInteger
-const size = require('../../utils/array').size
+const name = 'pow'
+const dependencies = [
+  'typed',
+  'config',
+  'identity',
+  'multiply',
+  'matrix',
+  'inv',
+  'fraction',
+  'number',
+  'Complex'
+]
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-  const identity = load(require('../matrix/identity'))
-  const multiply = load(require('./multiply'))
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const fraction = load(require('../../type/fraction/function/fraction'))
-  const number = load(require('../../type/number'))
-
+export const createPow = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, identity, multiply, matrix, inv, number, fraction, Complex }) => {
   /**
    * Calculates the power of x to y, `x ^ y`.
-   * Matrix exponentiation is supported for square matrices `x`, and positive
-   * integer exponents `y`.
+   *
+   * Matrix exponentiation is supported for square matrices `x` and integers `y`:
+   * when `y` is nonnegative, `x` may be any square matrix; and when `y` is
+   * negative, `x` must be invertible, and then this function returns
+   * inv(x)^(-y).
    *
    * For cubic roots of negative numbers, the function returns the principal
    * root by default. In order to let the function return the real root,
@@ -35,15 +44,18 @@ function factory (type, config, load, typed) {
    *    const b = [[1, 2], [4, 3]]
    *    math.pow(b, 2)               // returns Array [[9, 8], [16, 17]]
    *
+   *    const c = [[1, 2], [4, 3]]
+   *    math.pow(c, -1)               // returns Array [[-0.6, 0.4], [0.8, -0.2]]
+   *
    * See also:
    *
    *    multiply, sqrt, cbrt, nthRoot
    *
-   * @param  {number | BigNumber | Complex | Unit | Array | Matrix} x  The base
-   * @param  {number | BigNumber | Complex} y                          The exponent
-   * @return {number | BigNumber | Complex | Array | Matrix} The value of `x` to the power `y`
+   * @param  {number | BigNumber | bigint | Complex | Unit | Array | Matrix} x  The base
+   * @param  {number | BigNumber | bigint | Complex} y                          The exponent
+   * @return {number | BigNumber | bigint | Complex | Array | Matrix} The value of `x` to the power `y`
    */
-  const pow = typed('pow', {
+  return typed(name, {
     'number, number': _pow,
 
     'Complex, Complex': function (x, y) {
@@ -54,19 +66,23 @@ function factory (type, config, load, typed) {
       if (y.isInteger() || x >= 0 || config.predictable) {
         return x.pow(y)
       } else {
-        return new type.Complex(x.toNumber(), 0).pow(y.toNumber(), 0)
+        return new Complex(x.toNumber(), 0).pow(y.toNumber(), 0)
       }
     },
 
+    'bigint, bigint': (x, y) => x ** y,
+
     'Fraction, Fraction': function (x, y) {
-      if (y.d !== 1) {
-        if (config.predictable) {
-          throw new Error('Function pow does not support non-integer exponents for fractions.')
-        } else {
-          return _pow(x.valueOf(), y.valueOf())
-        }
+      const result = x.pow(y)
+
+      if (result != null) {
+        return result
+      }
+
+      if (config.predictable) {
+        throw new Error('Result of pow is non-rational and cannot be expressed as a fraction')
       } else {
-        return x.pow(y)
+        return _pow(x.valueOf(), y.valueOf())
       }
     },
 
@@ -115,13 +131,6 @@ function factory (type, config, load, typed) {
       // Unable to express y as a fraction, so continue on
     }
 
-    // x^Infinity === 0 if -1 < x < 1
-    // A real number 0 is returned instead of complex(0)
-    if ((x * x < 1 && y === Infinity) ||
-        (x * x > 1 && y === -Infinity)) {
-      return 0
-    }
-
     // **for predictable mode** x^Infinity === NaN if x < -1
     // N.B. this behavour is different from `Math.pow` which gives
     // (-2)^Infinity === Infinity
@@ -132,22 +141,31 @@ function factory (type, config, load, typed) {
     }
 
     if (isInteger(y) || x >= 0 || config.predictable) {
-      return Math.pow(x, y)
+      return powNumber(x, y)
     } else {
-      return new type.Complex(x, 0).pow(y, 0)
+      // TODO: the following infinity checks are duplicated from powNumber. Deduplicate this somehow
+
+      // x^Infinity === 0 if -1 < x < 1
+      // A real number 0 is returned instead of complex(0)
+      if ((x * x < 1 && y === Infinity) ||
+        (x * x > 1 && y === -Infinity)) {
+        return 0
+      }
+
+      return new Complex(x, 0).pow(y, 0)
     }
   }
 
   /**
    * Calculate the power of a 2d array
    * @param {Array} x     must be a 2 dimensional, square matrix
-   * @param {number} y    a positive, integer value
+   * @param {number} y    a integer value (positive if `x` is not invertible)
    * @returns {Array}
    * @private
    */
   function _powArray (x, y) {
-    if (!isInteger(y) || y < 0) {
-      throw new TypeError('For A^b, b must be a positive integer (value is ' + y + ')')
+    if (!isInteger(y)) {
+      throw new TypeError('For A^b, b must be an integer (value is ' + y + ')')
     }
     // verify that A is a 2 dimensional square matrix
     const s = size(x)
@@ -156,6 +174,16 @@ function factory (type, config, load, typed) {
     }
     if (s[0] !== s[1]) {
       throw new Error('For A^b, A must be square (size is ' + s[0] + 'x' + s[1] + ')')
+    }
+    if (y < 0) {
+      try {
+        return _powArray(inv(x), -y)
+      } catch (error) {
+        if (error.message === 'Cannot calculate inverse, determinant is zero') {
+          throw new TypeError('For A^b, when A is not invertible, b must be a positive integer (value is ' + y + ')')
+        }
+        throw error
+      }
     }
 
     let res = identity(s[0]).valueOf()
@@ -180,13 +208,4 @@ function factory (type, config, load, typed) {
   function _powMatrix (x, y) {
     return matrix(_powArray(x.valueOf(), y))
   }
-
-  pow.toTex = {
-    2: `\\left(\${args[0]}\\right)${latex.operators['pow']}{\${args[1]}}`
-  }
-
-  return pow
-}
-
-exports.name = 'pow'
-exports.factory = factory
+})

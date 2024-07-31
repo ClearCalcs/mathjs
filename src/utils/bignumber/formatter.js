@@ -1,6 +1,42 @@
-'use strict'
+import { isBigNumber, isNumber } from '../is.js'
+import { isInteger, normalizeFormatOptions } from '../number.js'
 
-const objectUtils = require('../object')
+/**
+ * Formats a BigNumber in a given base
+ * @param {BigNumber} n
+ * @param {number} base
+ * @param {number} size
+ * @returns {string}
+ */
+function formatBigNumberToBase (n, base, size) {
+  const BigNumberCtor = n.constructor
+  const big2 = new BigNumberCtor(2)
+  let suffix = ''
+  if (size) {
+    if (size < 1) {
+      throw new Error('size must be in greater than 0')
+    }
+    if (!isInteger(size)) {
+      throw new Error('size must be an integer')
+    }
+    if (n.greaterThan(big2.pow(size - 1).sub(1)) || n.lessThan(big2.pow(size - 1).mul(-1))) {
+      throw new Error(`Value must be in range [-2^${size - 1}, 2^${size - 1}-1]`)
+    }
+    if (!n.isInteger()) {
+      throw new Error('Value must be an integer')
+    }
+    if (n.lessThan(0)) {
+      n = n.add(big2.pow(size))
+    }
+    suffix = `i${size}`
+  }
+  switch (base) {
+    case 2: return `${n.toBinary()}${suffix}`
+    case 8: return `${n.toOctal()}${suffix}`
+    case 16: return `${n.toHexadecimal()}${suffix}`
+    default: throw new Error(`Base ${base} not supported `)
+  }
+}
 
 /**
  * Convert a BigNumber to a formatted string representation.
@@ -29,6 +65,20 @@ const objectUtils = require('../object')
  *                                          Lower bound is included, upper bound
  *                                          is excluded.
  *                                          For example '123.4' and '1.4e7'.
+ *                         'bin', 'oct, or
+ *                         'hex'            Format the number using binary, octal,
+ *                                          or hexadecimal notation.
+ *                                          For example '0b1101' and '0x10fe'.
+ *                     {number} wordSize    The word size in bits to use for formatting
+ *                                          in binary, octal, or hexadecimal notation.
+ *                                          To be used only with 'bin', 'oct', or 'hex'
+ *                                          values for 'notation' option. When this option
+ *                                          is defined the value is formatted as a signed
+ *                                          twos complement integer of the given word size
+ *                                          and the size suffix is appended to the output.
+ *                                          For example
+ *                                          format(-1, {notation: 'hex', wordSize: 8}) === '0xffi8'.
+ *                                          Default value is undefined.
  *                     {number} precision   A number between 0 and 16 to round
  *                                          the digits of the number.
  *                                          In case of notations 'exponential',
@@ -66,10 +116,10 @@ const objectUtils = require('../object')
  *    format(12400,  {notation: 'engineering'})          // returns '12.400e+3'
  *
  * @param {BigNumber} value
- * @param {Object | Function | number} [options]
+ * @param {Object | Function | number | BigNumber} [options]
  * @return {string} str The formatted value
  */
-exports.format = function (value, options) {
+export function format (value, options) {
   if (typeof options === 'function') {
     // handle format(value, fn)
     return options(value)
@@ -80,71 +130,48 @@ exports.format = function (value, options) {
     return value.isNaN() ? 'NaN' : (value.gt(0) ? 'Infinity' : '-Infinity')
   }
 
-  // default values for options
-  let notation = 'auto'
-  let precision
-
-  if (options !== undefined) {
-    // determine notation from options
-    if (options.notation) {
-      notation = options.notation
-    }
-
-    // determine precision from options
-    if (typeof options === 'number') {
-      precision = options
-    } else if (options.precision) {
-      precision = options.precision
-    }
-  }
+  const { notation, precision, wordSize } = normalizeFormatOptions(options)
 
   // handle the various notations
   switch (notation) {
     case 'fixed':
-      return exports.toFixed(value, precision)
+      return toFixed(value, precision)
 
     case 'exponential':
-      return exports.toExponential(value, precision)
+      return toExponential(value, precision)
+
+    case 'engineering':
+      return toEngineering(value, precision)
+
+    case 'bin':
+      return formatBigNumberToBase(value, 2, wordSize)
+
+    case 'oct':
+      return formatBigNumberToBase(value, 8, wordSize)
+
+    case 'hex':
+      return formatBigNumberToBase(value, 16, wordSize)
 
     case 'auto':
-      // TODO: clean up some day. Deprecated since: 2018-01-24
-      // @deprecated upper and lower are replaced with upperExp and lowerExp since v4.0.0
-      if (options && options.exponential && (options.exponential.lower !== undefined || options.exponential.upper !== undefined)) {
-        const fixedOptions = objectUtils.map(options, function (x) { return x })
-        fixedOptions.exponential = undefined
-        if (options.exponential.lower !== undefined) {
-          fixedOptions.lowerExp = Math.round(Math.log(options.exponential.lower) / Math.LN10)
-        }
-        if (options.exponential.upper !== undefined) {
-          fixedOptions.upperExp = Math.round(Math.log(options.exponential.upper) / Math.LN10)
-        }
-
-        console.warn('Deprecation warning: Formatting options exponential.lower and exponential.upper ' +
-            '(minimum and maximum value) ' +
-            'are replaced with exponential.lowerExp and exponential.upperExp ' +
-            '(minimum and maximum exponent) since version 4.0.0. ' +
-            'Replace ' + JSON.stringify(options) + ' with ' + JSON.stringify(fixedOptions))
-
-        return exports.format(value, fixedOptions)
-      }
-
+    {
       // determine lower and upper bound for exponential notation.
       // TODO: implement support for upper and lower to be BigNumbers themselves
-      const lowerExp = (options && options.lowerExp !== undefined) ? options.lowerExp : -3
-      const upperExp = (options && options.upperExp !== undefined) ? options.upperExp : 5
+      const lowerExp = _toNumberOrDefault(options?.lowerExp, -3)
+      const upperExp = _toNumberOrDefault(options?.upperExp, 5)
 
       // handle special case zero
       if (value.isZero()) return '0'
 
       // determine whether or not to output exponential notation
       let str
-      const exp = value.abs().logarithm()
-      if (exp.gte(lowerExp) && exp.lt(upperExp)) {
+      const rounded = value.toSignificantDigits(precision)
+      const exp = rounded.e
+      if (exp >= lowerExp && exp < upperExp) {
         // normal number notation
-        str = value.toSignificantDigits(precision).toFixed()
+        str = rounded.toFixed()
       } else {
         // exponential notation
-        str = exports.toExponential(value, precision)
+        str = toExponential(value, precision)
       }
 
       // remove trailing zeros after the decimal point
@@ -153,11 +180,33 @@ exports.format = function (value, options) {
         const e = arguments[4]
         return (digits !== '.') ? digits + e : e
       })
-
+    }
     default:
       throw new Error('Unknown notation "' + notation + '". ' +
-          'Choose "auto", "exponential", or "fixed".')
+          'Choose "auto", "exponential", "fixed", "bin", "oct", or "hex.')
   }
+}
+
+/**
+ * Format a BigNumber in engineering notation. Like '1.23e+6', '2.3e+0', '3.500e-3'
+ * @param {BigNumber} value
+ * @param {number} [precision]        Optional number of significant figures to return.
+ */
+export function toEngineering (value, precision) {
+  // find nearest lower multiple of 3 for exponent
+  const e = value.e
+  const newExp = e % 3 === 0 ? e : (e < 0 ? (e - 3) - (e % 3) : e - (e % 3))
+
+  // find difference in exponents, and calculate the value without exponent
+  const valueWithoutExp = value.mul(Math.pow(10, -newExp))
+
+  let valueStr = valueWithoutExp.toPrecision(precision)
+  if (valueStr.includes('e')) {
+    const BigNumber = value.constructor
+    valueStr = new BigNumber(valueStr).toFixed()
+  }
+
+  return valueStr + 'e' + (e >= 0 ? '+' : '') + newExp.toString()
 }
 
 /**
@@ -168,7 +217,7 @@ exports.format = function (value, options) {
  *                              is used.
  * @returns {string} str
  */
-exports.toExponential = function (value, precision) {
+export function toExponential (value, precision) {
   if (precision !== undefined) {
     return value.toExponential(precision - 1) // Note the offset of one
   } else {
@@ -182,6 +231,16 @@ exports.toExponential = function (value, precision) {
  * @param {number} [precision=undefined] Optional number of decimals after the
  *                                       decimal point. Undefined by default.
  */
-exports.toFixed = function (value, precision) {
+export function toFixed (value, precision) {
   return value.toFixed(precision)
+}
+
+function _toNumberOrDefault (value, defaultValue) {
+  if (isNumber(value)) {
+    return value
+  } else if (isBigNumber(value)) {
+    return value.toNumber()
+  } else {
+    return defaultValue
+  }
 }

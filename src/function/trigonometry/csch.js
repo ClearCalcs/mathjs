@@ -1,14 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { cschNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
-const sign = require('../../utils/number').sign
+const name = 'csch'
+const dependencies = ['typed', 'BigNumber']
 
-function factory (type, config, load, typed) {
+export const createCsch = /* #__PURE__ */ factory(name, dependencies, ({ typed, BigNumber }) => {
   /**
    * Calculate the hyperbolic cosecant of a value,
    * defined as `csch(x) = 1 / sinh(x)`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix hyperbolic cosecant, this function
+   * does not apply to matrices.
    *
    * Syntax:
    *
@@ -24,51 +26,12 @@ function factory (type, config, load, typed) {
    *
    *    sinh, sech, coth
    *
-   * @param {number | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | Complex | Array | Matrix} Hyperbolic cosecant of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic cosecant of x
    */
-  const csch = typed('csch', {
-    'number': _csch,
-
-    'Complex': function (x) {
-      return x.csch()
-    },
-
-    'BigNumber': function (x) {
-      return new type.BigNumber(1).div(x.sinh())
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function csch is no angle')
-      }
-      return csch(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, csch)
-    }
+  return typed(name, {
+    number: cschNumber,
+    Complex: x => x.csch(),
+    BigNumber: x => new BigNumber(1).div(x.sinh())
   })
-
-  csch.toTex = { 1: `\\mathrm{csch}\\left(\${args[0]}\\right)` }
-
-  return csch
-}
-
-/**
- * Calculate the hyperbolic cosecant of a number
- * @param {number} x
- * @returns {number}
- * @private
- */
-function _csch (x) {
-  // consider values close to zero (+/-)
-  if (x === 0) {
-    return Number.POSITIVE_INFINITY
-  } else {
-    return Math.abs(2 / (Math.exp(x) - Math.exp(-x))) * sign(x)
-  }
-}
-
-exports.name = 'csch'
-exports.factory = factory
+})

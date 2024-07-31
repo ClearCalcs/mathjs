@@ -1,12 +1,17 @@
-'use strict'
-const Complex = require('complex.js')
-const format = require('../../utils/number').format
-const isNumber = require('../../utils/number').isNumber
+import Complex from 'complex.js'
+import { format } from '../../utils/number.js'
+import { isNumber, isUnit } from '../../utils/is.js'
+import { factory } from '../../utils/factory.js'
 
-function factory (type, config, load, typed, math) {
+const name = 'Complex'
+const dependencies = []
+
+export const createComplexClass = /* #__PURE__ */ factory(name, dependencies, () => {
   /**
    * Attach type information
    */
+  Object.defineProperty(Complex, 'name', { value: 'Complex' })
+  Complex.prototype.constructor = Complex
   Complex.prototype.type = 'Complex'
   Complex.prototype.isComplex = true
 
@@ -108,29 +113,33 @@ function factory (type, config, load, typed, math) {
   Complex.fromPolar = function (args) {
     switch (arguments.length) {
       case 1:
+      {
         const arg = arguments[0]
         if (typeof arg === 'object') {
           return Complex(arg)
+        } else {
+          throw new TypeError('Input has to be an object with r and phi keys.')
         }
-        throw new TypeError('Input has to be an object with r and phi keys.')
-
+      }
       case 2:
+      {
         const r = arguments[0]
         let phi = arguments[1]
         if (isNumber(r)) {
-          if (type.isUnit(phi) && phi.hasBase('ANGLE')) {
+          if (isUnit(phi) && phi.hasBase('ANGLE')) {
             // convert unit to a number in radians
             phi = phi.toNumber('rad')
           }
 
           if (isNumber(phi)) {
-            return new Complex({ r: r, phi: phi })
+            return new Complex({ r, phi })
           }
 
           throw new TypeError('Phi is not a number nor an angle unit.')
         } else {
           throw new TypeError('Radius r is not a number.')
         }
+      }
 
       default:
         throw new SyntaxError('Wrong number of arguments in function fromPolar')
@@ -150,16 +159,6 @@ function factory (type, config, load, typed, math) {
   Complex.fromJSON = function (json) {
     return new Complex(json)
   }
-
-  // apply the current epsilon
-  Complex.EPSILON = config.epsilon
-
-  // listen for changed in the configuration, automatically apply changed epsilon
-  math.on('config', function (curr, prev) {
-    if (curr.epsilon !== prev.epsilon) {
-      Complex.EPSILON = curr.epsilon
-    }
-  })
 
   /**
    * Compare two complex numbers, `a` and `b`:
@@ -187,9 +186,4 @@ function factory (type, config, load, typed, math) {
   }
 
   return Complex
-}
-
-exports.name = 'Complex'
-exports.path = 'type'
-exports.factory = factory
-exports.math = true // request access to the math namespace
+}, { isClass: true })

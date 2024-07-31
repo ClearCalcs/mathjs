@@ -1,180 +1,182 @@
-'use strict'
+import { format } from '../../utils/string.js'
+import { typeOf } from '../../utils/is.js'
+import { escapeLatex } from '../../utils/latex.js'
+import { factory } from '../../utils/factory.js'
 
-const format = require('../../utils/string').format
-const escapeLatex = require('../../utils/latex').escape
+const name = 'ConstantNode'
+const dependencies = [
+  'Node'
+]
 
-function factory (type, config, load, typed) {
-  const Node = load(require('./Node'))
-  const getType = load(require('../../function/utils/typeof'))
-
-  /**
-   * A ConstantNode holds a constant value like a number or string.
-   *
-   * Usage:
-   *
-   *     new ConstantNode(2.3)
-   *     new ConstantNode('hello')
-   *
-   * @param {*} value    Value can be any type (number, BigNumber, string, ...)
-   * @constructor ConstantNode
-   * @extends {Node}
-   */
-  function ConstantNode (value) {
-    if (!(this instanceof ConstantNode)) {
-      throw new SyntaxError('Constructor must be called with the new operator')
+export const createConstantNode = /* #__PURE__ */ factory(name, dependencies, ({ Node }) => {
+  class ConstantNode extends Node {
+    /**
+     * A ConstantNode holds a constant value like a number or string.
+     *
+     * Usage:
+     *
+     *     new ConstantNode(2.3)
+     *     new ConstantNode('hello')
+     *
+     * @param {*} value    Value can be any type (number, BigNumber, bigint, string, ...)
+     * @constructor ConstantNode
+     * @extends {Node}
+     */
+    constructor (value) {
+      super()
+      this.value = value
     }
 
-    if (arguments.length === 2) {
-      // TODO: remove deprecation error some day (created 2018-01-23)
-      throw new SyntaxError('new ConstantNode(valueStr, valueType) is not supported anymore since math v4.0.0. Use new ConstantNode(value) instead, where value is a non-stringified value.')
+    static name = name
+    get type () { return name }
+    get isConstantNode () { return true }
+
+    /**
+     * Compile a node into a JavaScript function.
+     * This basically pre-calculates as much as possible and only leaves open
+     * calculations which depend on a dynamic scope with variables.
+     * @param {Object} math     Math.js namespace with functions and constants.
+     * @param {Object} argNames An object with argument names as key and `true`
+     *                          as value. Used in the SymbolNode to optimize
+     *                          for arguments from user assigned functions
+     *                          (see FunctionAssignmentNode) or special symbols
+     *                          like `end` (see IndexNode).
+     * @return {function} Returns a function which can be called like:
+     *                        evalNode(scope: Object, args: Object, context: *)
+     */
+    _compile (math, argNames) {
+      const value = this.value
+
+      return function evalConstantNode () {
+        return value
+      }
     }
 
-    this.value = value
-  }
-
-  ConstantNode.prototype = new Node()
-
-  ConstantNode.prototype.type = 'ConstantNode'
-
-  ConstantNode.prototype.isConstantNode = true
-
-  /**
-   * Compile a node into a JavaScript function.
-   * This basically pre-calculates as much as possible and only leaves open
-   * calculations which depend on a dynamic scope with variables.
-   * @param {Object} math     Math.js namespace with functions and constants.
-   * @param {Object} argNames An object with argument names as key and `true`
-   *                          as value. Used in the SymbolNode to optimize
-   *                          for arguments from user assigned functions
-   *                          (see FunctionAssignmentNode) or special symbols
-   *                          like `end` (see IndexNode).
-   * @return {function} Returns a function which can be called like:
-   *                        evalNode(scope: Object, args: Object, context: *)
-   */
-  ConstantNode.prototype._compile = function (math, argNames) {
-    const value = this.value
-
-    return function evalConstantNode () {
-      return value
+    /**
+     * Execute a callback for each of the child nodes of this node
+     * @param {function(child: Node, path: string, parent: Node)} callback
+     */
+    forEach (callback) {
+      // nothing to do, we don't have any children
     }
-  }
 
-  /**
-   * Execute a callback for each of the child nodes of this node
-   * @param {function(child: Node, path: string, parent: Node)} callback
-   */
-  ConstantNode.prototype.forEach = function (callback) {
-    // nothing to do, we don't have childs
-  }
-
-  /**
-   * Create a new ConstantNode having it's childs be the results of calling
-   * the provided callback function for each of the childs of the original node.
-   * @param {function(child: Node, path: string, parent: Node) : Node} callback
-   * @returns {ConstantNode} Returns a clone of the node
-   */
-  ConstantNode.prototype.map = function (callback) {
-    return this.clone()
-  }
-
-  /**
-   * Create a clone of this node, a shallow copy
-   * @return {ConstantNode}
-   */
-  ConstantNode.prototype.clone = function () {
-    return new ConstantNode(this.value)
-  }
-
-  /**
-   * Get string representation
-   * @param {Object} options
-   * @return {string} str
-   */
-  ConstantNode.prototype._toString = function (options) {
-    return format(this.value, options)
-  }
-
-  /**
-   * Get HTML representation
-   * @param {Object} options
-   * @return {string} str
-   */
-  ConstantNode.prototype.toHTML = function (options) {
-    const value = this._toString(options)
-
-    switch (getType(this.value)) {
-      case 'number':
-      case 'BigNumber':
-      case 'Fraction':
-        return '<span class="math-number">' + value + '</span>'
-      case 'string':
-        return '<span class="math-string">' + value + '</span>'
-      case 'boolean':
-        return '<span class="math-boolean">' + value + '</span>'
-      case 'null':
-        return '<span class="math-null-symbol">' + value + '</span>'
-      case 'undefined':
-        return '<span class="math-undefined">' + value + '</span>'
-
-      default:
-        return '<span class="math-symbol">' + value + '</span>'
+    /**
+     * Create a new ConstantNode with children produced by the given callback.
+     * Trivial because there are no children.
+     * @param {function(child: Node, path: string, parent: Node) : Node} callback
+     * @returns {ConstantNode} Returns a clone of the node
+     */
+    map (callback) {
+      return this.clone()
     }
-  }
 
-  /**
-   * Get a JSON representation of the node
-   * @returns {Object}
-   */
-  ConstantNode.prototype.toJSON = function () {
-    return {
-      mathjs: 'ConstantNode',
-      value: this.value
+    /**
+     * Create a clone of this node, a shallow copy
+     * @return {ConstantNode}
+     */
+    clone () {
+      return new ConstantNode(this.value)
     }
-  }
 
-  /**
-   * Instantiate a ConstantNode from its JSON representation
-   * @param {Object} json  An object structured like
-   *                       `{"mathjs": "SymbolNode", value: 2.3}`,
-   *                       where mathjs is optional
-   * @returns {ConstantNode}
-   */
-  ConstantNode.fromJSON = function (json) {
-    return new ConstantNode(json.value)
-  }
+    /**
+     * Get string representation
+     * @param {Object} options
+     * @return {string} str
+     */
+    _toString (options) {
+      return format(this.value, options)
+    }
 
-  /**
-   * Get LaTeX representation
-   * @param {Object} options
-   * @return {string} str
-   */
-  ConstantNode.prototype._toTex = function (options) {
-    const value = this._toString(options)
+    /**
+     * Get HTML representation
+     * @param {Object} options
+     * @return {string} str
+     */
+    _toHTML (options) {
+      const value = this._toString(options)
 
-    switch (getType(this.value)) {
-      case 'string':
-        return '\\mathtt{' + escapeLatex(value) + '}'
+      switch (typeOf(this.value)) {
+        case 'number':
+        case 'bigint':
+        case 'BigNumber':
+        case 'Fraction':
+          return '<span class="math-number">' + value + '</span>'
+        case 'string':
+          return '<span class="math-string">' + value + '</span>'
+        case 'boolean':
+          return '<span class="math-boolean">' + value + '</span>'
+        case 'null':
+          return '<span class="math-null-symbol">' + value + '</span>'
+        case 'undefined':
+          return '<span class="math-undefined">' + value + '</span>'
 
-      case 'number':
-      case 'BigNumber':
-        const index = value.toLowerCase().indexOf('e')
-        if (index !== -1) {
-          return value.substring(0, index) + '\\cdot10^{' +
+        default:
+          return '<span class="math-symbol">' + value + '</span>'
+      }
+    }
+
+    /**
+     * Get a JSON representation of the node
+     * @returns {Object}
+     */
+    toJSON () {
+      return { mathjs: name, value: this.value }
+    }
+
+    /**
+     * Instantiate a ConstantNode from its JSON representation
+     * @param {Object} json  An object structured like
+     *                       `{"mathjs": "SymbolNode", value: 2.3}`,
+     *                       where mathjs is optional
+     * @returns {ConstantNode}
+     */
+    static fromJSON (json) {
+      return new ConstantNode(json.value)
+    }
+
+    /**
+     * Get LaTeX representation
+     * @param {Object} options
+     * @return {string} str
+     */
+    _toTex (options) {
+      const value = this._toString(options)
+      const type = typeOf(this.value)
+
+      switch (type) {
+        case 'string':
+          return '\\mathtt{' + escapeLatex(value) + '}'
+
+        case 'number':
+        case 'BigNumber': {
+          const finite = type === 'BigNumber' ? this.value.isFinite() : isFinite(this.value)
+          if (!finite) {
+            return (this.value.valueOf() < 0)
+              ? '-\\infty'
+              : '\\infty'
+          }
+
+          const index = value.toLowerCase().indexOf('e')
+          if (index !== -1) {
+            return value.substring(0, index) + '\\cdot10^{' +
               value.substring(index + 1) + '}'
+          }
+
+          return value
         }
-        return value
 
-      case 'Fraction':
-        return this.value.toLatex()
+        case 'bigint': {
+          return value.toString()
+        }
 
-      default:
-        return value
+        case 'Fraction':
+          return this.value.toLatex()
+
+        default:
+          return value
+      }
     }
   }
 
   return ConstantNode
-}
-
-exports.name = 'ConstantNode'
-exports.path = 'expression.node'
-exports.factory = factory
+}, { isClass: true, isNode: true })

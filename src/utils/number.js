@@ -1,26 +1,15 @@
-'use strict'
-
-const objectUtils = require('./object')
+import { isBigNumber, isNumber, isObject } from './is.js'
 
 /**
  * @typedef {{sign: '+' | '-' | '', coefficients: number[], exponent: number}} SplitValue
  */
 
 /**
- * Test whether value is a number
- * @param {*} value
- * @return {boolean} isNumber
- */
-exports.isNumber = function (value) {
-  return typeof value === 'number'
-}
-
-/**
  * Check if a number is integer
  * @param {number | boolean} value
  * @return {boolean} isInteger
  */
-exports.isInteger = function (value) {
+export function isInteger (value) {
   if (typeof value === 'boolean') {
     return true
   }
@@ -28,15 +17,50 @@ exports.isInteger = function (value) {
   return isFinite(value)
     ? (value === Math.round(value))
     : false
-  // Note: we use ==, not ===, as we can have Booleans as well
+}
+
+/**
+ * Check if a string contains an integer
+ * @param {string} str
+ * @return {boolean} isInteger
+ */
+export function isIntegerStr (str) {
+  // regex matching strings like "123" and "-123"
+  return /^-?\d+$/.test(str)
+}
+
+/**
+ * Ensure the number type is compatible with the provided value.
+ * If not, return 'number' instead.
+ *
+ * For example:
+ *
+ *     safeNumberType('2.3', { number: 'bigint', numberFallback: 'number' })
+ *
+ * will return 'number' and not 'bigint' because trying to create a bigint with
+ * value 2.3 would throw an exception.
+ *
+ * @param {string} numberStr
+ * @param {{
+ *   number: 'number' | 'BigNumber' | 'bigint' | 'Fraction'
+ *   numberFallback: 'number' | 'BigNumber'
+ * }} config
+ * @returns {'number' | 'BigNumber' | 'bigint' | 'Fraction'}
+ */
+export function safeNumberType (numberStr, config) {
+  if (config.number === 'bigint' && !isIntegerStr(numberStr)) {
+    return config.numberFallback
+  }
+
+  return config.number
 }
 
 /**
  * Calculate the sign of a number
  * @param {number} x
- * @returns {*}
+ * @returns {number}
  */
-exports.sign = Math.sign || function (x) {
+export const sign = Math.sign || function (x) {
   if (x > 0) {
     return 1
   } else if (x < 0) {
@@ -44,6 +68,112 @@ exports.sign = Math.sign || function (x) {
   } else {
     return 0
   }
+}
+
+/**
+ * Calculate the base-2 logarithm of a number
+ * @param {number} x
+ * @returns {number}
+ */
+export const log2 = Math.log2 || function log2 (x) {
+  return Math.log(x) / Math.LN2
+}
+
+/**
+ * Calculate the base-10 logarithm of a number
+ * @param {number} x
+ * @returns {number}
+ */
+export const log10 = Math.log10 || function log10 (x) {
+  return Math.log(x) / Math.LN10
+}
+
+/**
+ * Calculate the natural logarithm of a number + 1
+ * @param {number} x
+ * @returns {number}
+ */
+export const log1p = Math.log1p || function (x) {
+  return Math.log(x + 1)
+}
+
+/**
+ * Calculate cubic root for a number
+ *
+ * Code from es6-shim.js:
+ *   https://github.com/paulmillr/es6-shim/blob/master/es6-shim.js#L1564-L1577
+ *
+ * @param {number} x
+ * @returns {number} Returns the cubic root of x
+ */
+export const cbrt = Math.cbrt || function cbrt (x) {
+  if (x === 0) {
+    return x
+  }
+
+  const negate = x < 0
+  let result
+  if (negate) {
+    x = -x
+  }
+
+  if (isFinite(x)) {
+    result = Math.exp(Math.log(x) / 3)
+    // from https://en.wikipedia.org/wiki/Cube_root#Numerical_methods
+    result = (x / (result * result) + (2 * result)) / 3
+  } else {
+    result = x
+  }
+
+  return negate ? -result : result
+}
+
+/**
+ * Calculates exponentiation minus 1
+ * @param {number} x
+ * @return {number} res
+ */
+export const expm1 = Math.expm1 || function expm1 (x) {
+  return (x >= 2e-4 || x <= -2e-4)
+    ? Math.exp(x) - 1
+    : x + x * x / 2 + x * x * x / 6
+}
+
+/**
+ * Formats a number in a given base
+ * @param {number} n
+ * @param {number} base
+ * @param {number} size
+ * @returns {string}
+ */
+function formatNumberToBase (n, base, size) {
+  const prefixes = { 2: '0b', 8: '0o', 16: '0x' }
+  const prefix = prefixes[base]
+  let suffix = ''
+  if (size) {
+    if (size < 1) {
+      throw new Error('size must be in greater than 0')
+    }
+    if (!isInteger(size)) {
+      throw new Error('size must be an integer')
+    }
+    if (n > 2 ** (size - 1) - 1 || n < -(2 ** (size - 1))) {
+      throw new Error(`Value must be in range [-2^${size - 1}, 2^${size - 1}-1]`)
+    }
+    if (!isInteger(n)) {
+      throw new Error('Value must be an integer')
+    }
+    if (n < 0) {
+      n = n + 2 ** size
+    }
+    suffix = `i${size}`
+  }
+  let sign = ''
+  if (n < 0) {
+    n = -n
+    sign = '-'
+  }
+  return `${sign}${prefix}${n.toString(base)}${suffix}`
 }
 
 /**
@@ -75,6 +205,20 @@ exports.sign = Math.sign || function (x) {
  *                                          Lower bound is included, upper bound
  *                                          is excluded.
  *                                          For example '123.4' and '1.4e7'.
+ *                         'bin', 'oct, or
+ *                         'hex'            Format the number using binary, octal,
+ *                                          or hexadecimal notation.
+ *                                          For example '0b1101' and '0x10fe'.
+ *                     {number} wordSize    The word size in bits to use for formatting
+ *                                          in binary, octal, or hexadecimal notation.
+ *                                          To be used only with 'bin', 'oct', or 'hex'
+ *                                          values for 'notation' option. When this option
+ *                                          is defined the value is formatted as a signed
+ *                                          twos complement integer of the given word size
+ *                                          and the size suffix is appended to the output.
+ *                                          For example
+ *                                          format(-1, {notation: 'hex', wordSize: 8}) === '0xffi8'.
+ *                                          Default value is undefined.
  *                     {number} precision   A number between 0 and 16 to round
  *                                          the digits of the number.
  *                                          In case of notations 'exponential',
@@ -116,7 +260,7 @@ exports.sign = Math.sign || function (x) {
  * @param {Object | Function | number} [options]
  * @return {string} str The formatted value
  */
-exports.format = function (value, options) {
+export function format (value, options) {
   if (typeof options === 'function') {
     // handle format(value, fn)
     return options(value)
@@ -131,61 +275,31 @@ exports.format = function (value, options) {
     return 'NaN'
   }
 
-  // default values for options
-  let notation = 'auto'
-  let precision
-
-  if (options) {
-    // determine notation from options
-    if (options.notation) {
-      notation = options.notation
-    }
-
-    // determine precision from options
-    if (exports.isNumber(options)) {
-      precision = options
-    } else if (exports.isNumber(options.precision)) {
-      precision = options.precision
-    }
-  }
+  const { notation, precision, wordSize } = normalizeFormatOptions(options)
 
   // handle the various notations
   switch (notation) {
     case 'fixed':
-      return exports.toFixed(value, precision)
+      return toFixed(value, precision)
 
     case 'exponential':
-      return exports.toExponential(value, precision)
+      return toExponential(value, precision)
 
     case 'engineering':
-      return exports.toEngineering(value, precision)
+      return toEngineering(value, precision)
+
+    case 'bin':
+      return formatNumberToBase(value, 2, wordSize)
+
+    case 'oct':
+      return formatNumberToBase(value, 8, wordSize)
+
+    case 'hex':
+      return formatNumberToBase(value, 16, wordSize)
 
     case 'auto':
-      // TODO: clean up some day. Deprecated since: 2018-01-24
-      // @deprecated upper and lower are replaced with upperExp and lowerExp since v4.0.0
-      if (options && options.exponential && (options.exponential.lower !== undefined || options.exponential.upper !== undefined)) {
-        const fixedOptions = objectUtils.map(options, function (x) { return x })
-        fixedOptions.exponential = undefined
-        if (options.exponential.lower !== undefined) {
-          fixedOptions.lowerExp = Math.round(Math.log(options.exponential.lower) / Math.LN10)
-        }
-        if (options.exponential.upper !== undefined) {
-          fixedOptions.upperExp = Math.round(Math.log(options.exponential.upper) / Math.LN10)
-        }
-
-        console.warn('Deprecation warning: Formatting options exponential.lower and exponential.upper ' +
-            '(minimum and maximum value) ' +
-            'are replaced with exponential.lowerExp and exponential.upperExp ' +
-            '(minimum and maximum exponent) since version 4.0.0. ' +
-            'Replace ' + JSON.stringify(options) + ' with ' + JSON.stringify(fixedOptions))
-
-        return exports.toPrecision(value, precision, fixedOptions)
-      }
-
-      return exports
-        .toPrecision(value, precision, options && options)
-
       // remove trailing zeros after the decimal point
+      return toPrecision(value, precision, options)
         .replace(/((\.\d*?)(0+))($|e)/, function () {
           const digits = arguments[2]
           const e = arguments[4]
@@ -194,8 +308,51 @@ exports.format = function (value, options) {
 
     default:
       throw new Error('Unknown notation "' + notation + '". ' +
-          'Choose "auto", "exponential", or "fixed".')
+        'Choose "auto", "exponential", "fixed", "bin", "oct", or "hex.')
   }
+}
+
+/**
+ * Normalize format options into an object:
+ *   {
+ *     notation: string,
+ *     precision: number | undefined,
+ *     wordSize: number | undefined
+ *   }
+ */
+export function normalizeFormatOptions (options) {
+  // default values for options
+  let notation = 'auto'
+  let precision
+  let wordSize
+
+  if (options !== undefined) {
+    if (isNumber(options)) {
+      precision = options
+    } else if (isBigNumber(options)) {
+      precision = options.toNumber()
+    } else if (isObject(options)) {
+      if (options.precision !== undefined) {
+        precision = _toNumberOrThrow(options.precision, () => {
+          throw new Error('Option "precision" must be a number or BigNumber')
+        })
+      }
+
+      if (options.wordSize !== undefined) {
+        wordSize = _toNumberOrThrow(options.wordSize, () => {
+          throw new Error('Option "wordSize" must be a number or BigNumber')
+        })
+      }
+
+      if (options.notation) {
+        notation = options.notation
+      }
+    } else {
+      throw new Error('Unsupported type of options, number, BigNumber, or object expected')
+    }
+  }
+
+  return { notation, precision, wordSize }
 }
 
 /**
@@ -204,9 +361,9 @@ exports.format = function (value, options) {
  * @return {SplitValue}
  *              Returns an object containing sign, coefficients, and exponent
  */
-exports.splitNumber = function (value) {
+export function splitNumber (value) {
   // parse the input value
-  const match = String(value).toLowerCase().match(/^0*?(-?)(\d+\.?\d*)(e([+-]?\d+))?$/)
+  const match = String(value).toLowerCase().match(/^(-?)(\d+\.?\d*)(e([+-]?\d+))?$/)
   if (!match) {
     throw new SyntaxError('Invalid number ' + value)
   }
@@ -236,11 +393,7 @@ exports.splitNumber = function (value) {
     exponent++
   }
 
-  return {
-    sign: sign,
-    coefficients: coefficients,
-    exponent: exponent
-  }
+  return { sign, coefficients, exponent }
 }
 
 /**
@@ -248,46 +401,52 @@ exports.splitNumber = function (value) {
  * @param {number | string} value
  * @param {number} [precision]        Optional number of significant figures to return.
  */
-exports.toEngineering = function (value, precision) {
+export function toEngineering (value, precision) {
   if (isNaN(value) || !isFinite(value)) {
     return String(value)
   }
 
-  const rounded = exports.roundDigits(exports.splitNumber(value), precision)
+  const split = splitNumber(value)
+  const rounded = roundDigits(split, precision)
 
   const e = rounded.exponent
-  let c = rounded.coefficients
+  const c = rounded.coefficients
 
   // find nearest lower multiple of 3 for exponent
   const newExp = e % 3 === 0 ? e : (e < 0 ? (e - 3) - (e % 3) : e - (e % 3))
 
-  if (exports.isNumber(precision)) {
+  if (isNumber(precision)) {
     // add zeroes to give correct sig figs
-    if (precision > c.length) c = c.concat(zeros(precision - c.length))
+    while (precision > c.length || (e - newExp) + 1 > c.length) {
+      c.push(0)
+    }
   } else {
     // concatenate coefficients with necessary zeros
-    const significandsDiff = e >= 0 ? e : Math.abs(newExp)
-
-    // add zeros if necessary (for ex: 1e+8)
-    if (c.length - 1 < significandsDiff) c = c.concat(zeros(significandsDiff - (c.length - 1)))
+    // add zeros if necessary (for example: 1e+8 -> 100e+6)
+    const missingZeros = Math.abs(e - newExp) - (c.length - 1)
+    for (let i = 0; i < missingZeros; i++) {
+      c.push(0)
+    }
   }
 
   // find difference in exponents
   let expDiff = Math.abs(e - newExp)
-
   let decimalIdx = 1
 
   // push decimal index over by expDiff times
-  while (--expDiff >= 0) decimalIdx++
+  while (expDiff > 0) {
+    decimalIdx++
+    expDiff--
+  }
 
   // if all coefficient values are zero after the decimal point and precision is unset, don't add a decimal value.
   // otherwise concat with the rest of the coefficients
   const decimals = c.slice(decimalIdx).join('')
-  const decimalVal = ((exports.isNumber(precision) && decimals.length) || decimals.match(/[1-9]/)) ? ('.' + decimals) : ''
+  const decimalVal = ((isNumber(precision) && decimals.length) || decimals.match(/[1-9]/)) ? ('.' + decimals) : ''
 
   const str = c.slice(0, decimalIdx).join('') +
-      decimalVal +
-      'e' + (e >= 0 ? '+' : '') + newExp.toString()
+    decimalVal +
+    'e' + (e >= 0 ? '+' : '') + newExp.toString()
   return rounded.sign + str
 }
 
@@ -297,14 +456,14 @@ exports.toEngineering = function (value, precision) {
  * @param {number} [precision=undefined]  Optional number of decimals after the
  *                                        decimal point. null by default.
  */
-exports.toFixed = function (value, precision) {
+export function toFixed (value, precision) {
   if (isNaN(value) || !isFinite(value)) {
     return String(value)
   }
 
-  const splitValue = exports.splitNumber(value)
+  const splitValue = splitNumber(value)
   const rounded = (typeof precision === 'number')
-    ? exports.roundDigits(splitValue, splitValue.exponent + 1 + precision)
+    ? roundDigits(splitValue, splitValue.exponent + 1 + precision)
     : splitValue
   let c = rounded.coefficients
   let p = rounded.exponent + 1 // exponent may have changed
@@ -336,14 +495,14 @@ exports.toFixed = function (value, precision) {
  *                              If not provided, the maximum available digits
  *                              is used.
  */
-exports.toExponential = function (value, precision) {
+export function toExponential (value, precision) {
   if (isNaN(value) || !isFinite(value)) {
     return String(value)
   }
 
   // round if needed, else create a clone
-  const split = exports.splitNumber(value)
-  const rounded = precision ? exports.roundDigits(split, precision) : split
+  const split = splitNumber(value)
+  const rounded = precision ? roundDigits(split, precision) : split
   let c = rounded.coefficients
   const e = rounded.exponent
 
@@ -355,7 +514,7 @@ exports.toExponential = function (value, precision) {
   // format as `C.CCCe+EEE` or `C.CCCe-EEE`
   const first = c.shift()
   return rounded.sign + first + (c.length > 0 ? ('.' + c.join('')) : '') +
-      'e' + (e >= 0 ? '+' : '') + e
+    'e' + (e >= 0 ? '+' : '') + e
 }
 
 /**
@@ -368,21 +527,21 @@ exports.toExponential = function (value, precision) {
  *                                         upper = +5 (excl)
  * @return {string}
  */
-exports.toPrecision = function (value, precision, options) {
+export function toPrecision (value, precision, options) {
   if (isNaN(value) || !isFinite(value)) {
     return String(value)
   }
 
   // determine lower and upper bound for exponential notation.
-  const lowerExp = (options && options.lowerExp !== undefined) ? options.lowerExp : -3
-  const upperExp = (options && options.upperExp !== undefined) ? options.upperExp : 5
+  const lowerExp = _toNumberOrDefault(options?.lowerExp, -3)
+  const upperExp = _toNumberOrDefault(options?.upperExp, 5)
 
-  const split = exports.splitNumber(value)
-  if (split.exponent < lowerExp || split.exponent >= upperExp) {
+  const split = splitNumber(value)
+  const rounded = precision ? roundDigits(split, precision) : split
+  if (rounded.exponent < lowerExp || rounded.exponent >= upperExp) {
     // exponential notation
-    return exports.toExponential(value, precision)
+    return toExponential(value, precision)
   } else {
-    const rounded = precision ? exports.roundDigits(split, precision) : split
     let c = rounded.coefficients
     const e = rounded.exponent
 
@@ -394,7 +553,7 @@ exports.toPrecision = function (value, precision, options) {
     // append trailing zeros
     // TODO: simplify the next statement
     c = c.concat(zeros(e - c.length + 1 +
-        (c.length < precision ? precision - c.length : 0)))
+      (c.length < precision ? precision - c.length : 0)))
 
     // prepend zeros
     c = zeros(-e).concat(c)
@@ -416,7 +575,7 @@ exports.toPrecision = function (value, precision, options) {
  *              Returns an object containing sign, coefficients, and exponent
  *              with rounded digits
  */
-exports.roundDigits = function (split, precision) {
+export function roundDigits (split, precision) {
   // create a clone
   const rounded = {
     sign: split.sign,
@@ -478,7 +637,7 @@ function zeros (length) {
  * @param {number} value
  * @return {number} digits   Number of significant digits
  */
-exports.digits = function (value) {
+export function digits (value) {
   return value
     .toExponential()
     .replace(/e.*$/, '') // remove exponential notation
@@ -489,44 +648,129 @@ exports.digits = function (value) {
 /**
  * Minimum number added to one that makes the result different than one
  */
-exports.DBL_EPSILON = Number.EPSILON || 2.2204460492503130808472633361816E-16
+export const DBL_EPSILON = Number.EPSILON || 2.2204460492503130808472633361816E-16
 
 /**
  * Compares two floating point numbers.
- * @param {number} x          First value to compare
- * @param {number} y          Second value to compare
- * @param {number} [epsilon]  The maximum relative difference between x and y
- *                            If epsilon is undefined or null, the function will
- *                            test whether x and y are exactly equal.
+ * @param {number} a - First value to compare
+ * @param {number} b - Second value to compare
+ * @param {number} [relTol=1e-09] - The relative tolerance, indicating the maximum allowed difference relative to the larger absolute value. Must be greater than 0.
+ * @param {number} [absTol=1e-12] - The minimum absolute tolerance, useful for comparisons near zero. Must be at least 0.
  * @return {boolean} whether the two numbers are nearly equal
-*/
-exports.nearlyEqual = function (x, y, epsilon) {
-  // if epsilon is null or undefined, test whether x and y are exactly equal
-  if (epsilon === null || epsilon === undefined) {
-    return x === y
+ *
+ * @throws {Error} If `relTol` is less than or equal to 0.
+ * @throws {Error} If `absTol` is less than 0.
+ *
+ * @example
+ * nearlyEqual(1.000000001, 1.0, 1e-8);            // true
+ * nearlyEqual(1.000000002, 1.0, 0);            // false
+ * nearlyEqual(1.0, 1.009, undefined, 0.01);       // true
+ * nearlyEqual(0.000000001, 0.0, undefined, 1e-8); // true
+ */
+export function nearlyEqual (a, b, relTol = 1e-8, absTol = 0) {
+  if (relTol <= 0) {
+    throw new Error('Relative tolerance must be greater than 0')
   }
 
-  if (x === y) {
-    return true
+  if (absTol < 0) {
+    throw new Error('Absolute tolerance must be at least 0')
   }
 
   // NaN
-  if (isNaN(x) || isNaN(y)) {
+  if (isNaN(a) || isNaN(b)) {
     return false
   }
 
-  // at this point x and y should be finite
-  if (isFinite(x) && isFinite(y)) {
-    // check numbers are very close, needed when comparing numbers near zero
-    const diff = Math.abs(x - y)
-    if (diff < exports.DBL_EPSILON) {
-      return true
-    } else {
-      // use relative error
-      return diff <= Math.max(Math.abs(x), Math.abs(y)) * epsilon
-    }
+  if (!isFinite(a) || !isFinite(b)) {
+    return a === b
   }
 
-  // Infinite and Number or negative Infinite and positive Infinite cases
-  return false
+  if (a === b) {
+    return true
+  }
+
+  // abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+  return Math.abs(a - b) <= Math.max(relTol * Math.max(Math.abs(a), Math.abs(b)), absTol)
+}
+
+/**
+ * Calculate the hyperbolic arccos of a number
+ * @param {number} x
+ * @return {number}
+ */
+export const acosh = Math.acosh || function (x) {
+  return Math.log(Math.sqrt(x * x - 1) + x)
+}
+
+export const asinh = Math.asinh || function (x) {
+  return Math.log(Math.sqrt(x * x + 1) + x)
+}
+
+/**
+ * Calculate the hyperbolic arctangent of a number
+ * @param {number} x
+ * @return {number}
+ */
+export const atanh = Math.atanh || function (x) {
+  return Math.log((1 + x) / (1 - x)) / 2
+}
+
+/**
+ * Calculate the hyperbolic cosine of a number
+ * @param {number} x
+ * @returns {number}
+ */
+export const cosh = Math.cosh || function (x) {
+  return (Math.exp(x) + Math.exp(-x)) / 2
+}
+
+/**
+ * Calculate the hyperbolic sine of a number
+ * @param {number} x
+ * @returns {number}
+ */
+export const sinh = Math.sinh || function (x) {
+  return (Math.exp(x) - Math.exp(-x)) / 2
+}
+
+/**
+ * Calculate the hyperbolic tangent of a number
+ * @param {number} x
+ * @returns {number}
+ */
+export const tanh = Math.tanh || function (x) {
+  const e = Math.exp(2 * x)
+  return (e - 1) / (e + 1)
+}
+
+/**
+ * Returns a value with the magnitude of x and the sign of y.
+ * @param {number} x
+ * @param {number} y
+ * @returns {number}
+ */
+export function copysign (x, y) {
+  const signx = x > 0 ? true : x < 0 ? false : 1 / x === Infinity
+  const signy = y > 0 ? true : y < 0 ? false : 1 / y === Infinity
+  return signx ^ signy ? -x : x
+}
+
+function _toNumberOrThrow (value, onError) {
+  if (isNumber(value)) {
+    return value
+  } else if (isBigNumber(value)) {
+    return value.toNumber()
+  } else {
+    onError()
+  }
+}
+
+function _toNumberOrDefault (value, defaultValue) {
+  if (isNumber(value)) {
+    return value
+  } else if (isBigNumber(value)) {
+    return value.toNumber()
+  } else {
+    return defaultValue
+  }
 }

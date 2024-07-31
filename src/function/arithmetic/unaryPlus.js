@@ -1,10 +1,12 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
+import { unaryPlusNumber } from '../../plain/number/index.js'
+import { safeNumberType } from '../../utils/number.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'unaryPlus'
+const dependencies = ['typed', 'config', 'numeric']
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
+export const createUnaryPlus = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, numeric }) => {
   /**
    * Unary plus operation.
    * Boolean values and strings will be converted to a number, numeric values will be returned as is.
@@ -24,49 +26,43 @@ function factory (type, config, load, typed) {
    *
    *    unaryMinus, add, subtract
    *
-   * @param  {number | BigNumber | Fraction | string | Complex | Unit | Array | Matrix} x
+   * @param  {number | BigNumber | bigint | Fraction | string | Complex | Unit | Array | Matrix} x
    *            Input value
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix}
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix}
    *            Returns the input value when numeric, converts to a number when input is non-numeric.
    */
-  const unaryPlus = typed('unaryPlus', {
-    'number': function (x) {
-      return x
-    },
+  return typed(name, {
+    number: unaryPlusNumber,
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x // complex numbers are immutable
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x // bignumbers are immutable
     },
 
-    'Fraction': function (x) {
+    bigint: function (x) {
+      return x
+    },
+
+    Fraction: function (x) {
       return x // fractions are immutable
     },
 
-    'Unit': function (x) {
+    Unit: function (x) {
       return x.clone()
     },
 
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since unaryPlus(0) = 0
-      return deepMap(x, unaryPlus, true)
+    // deep map collection, skip zeros since unaryPlus(0) = 0
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self, true)),
+
+    boolean: function (x) {
+      return numeric(x ? 1 : 0, config.number)
     },
 
-    'boolean | string': function (x) {
-      // convert to a number or bignumber
-      return (config.number === 'BigNumber') ? new type.BigNumber(+x) : +x
+    string: function (x) {
+      return numeric(x, safeNumberType(x, config))
     }
   })
-
-  unaryPlus.toTex = {
-    1: `${latex.operators['unaryPlus']}\\left(\${args[0]}\\right)`
-  }
-
-  return unaryPlus
-}
-
-exports.name = 'unaryPlus'
-exports.factory = factory
+})

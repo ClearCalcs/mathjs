@@ -1,12 +1,14 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'acos'
+const dependencies = ['typed', 'config', 'Complex']
 
-function factory (type, config, load, typed) {
+export const createAcos = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, Complex }) => {
   /**
    * Calculate the inverse cosine of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix arccosine, this function does not
+   * apply to matrices.
    *
    * Syntax:
    *
@@ -23,35 +25,24 @@ function factory (type, config, load, typed) {
    *
    *    cos, atan, asin
    *
-   * @param {number | BigNumber | Complex | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} The arc cosine of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} The arc cosine of x
    */
-  const acos = typed('acos', {
-    'number': function (x) {
+  return typed(name, {
+    number: function (x) {
       if ((x >= -1 && x <= 1) || config.predictable) {
         return Math.acos(x)
       } else {
-        return new type.Complex(x, 0).acos()
+        return new Complex(x, 0).acos()
       }
     },
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.acos()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.acos()
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, acos)
     }
   })
-
-  acos.toTex = { 1: `\\cos^{-1}\\left(\${args[0]}\\right)` }
-
-  return acos
-}
-
-exports.name = 'acos'
-exports.factory = factory
+})

@@ -1,13 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { atanhNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'atanh'
+const dependencies = ['typed', 'config', 'Complex']
 
-function factory (type, config, load, typed) {
+export const createAtanh = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, Complex }) => {
   /**
    * Calculate the hyperbolic arctangent of a value,
    * defined as `atanh(x) = ln((1 + x)/(1 - x)) / 2`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix hyperbolic arctangent, this function
+   * does not apply to matrices.
    *
    * Syntax:
    *
@@ -21,45 +24,23 @@ function factory (type, config, load, typed) {
    *
    *    acosh, asinh
    *
-   * @param {number | Complex | Array | Matrix} x  Function input
-   * @return {number | Complex | Array | Matrix} Hyperbolic arctangent of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic arctangent of x
    */
-  const atanh = typed('atanh', {
-    'number': function (x) {
+  return typed(name, {
+    number: function (x) {
       if ((x <= 1 && x >= -1) || config.predictable) {
-        return _atanh(x)
+        return atanhNumber(x)
       }
-      return new type.Complex(x, 0).atanh()
+      return new Complex(x, 0).atanh()
     },
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.atanh()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.atanh()
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since atanh(0) = 0
-      return deepMap(x, atanh, true)
     }
   })
-
-  atanh.toTex = { 1: `\\tanh^{-1}\\left(\${args[0]}\\right)` }
-
-  return atanh
-}
-
-/**
- * Calculate the hyperbolic arctangent of a number
- * @param {number} x
- * @return {number}
- * @private
- */
-const _atanh = Math.atanh || function (x) {
-  return Math.log((1 + x) / (1 - x)) / 2
-}
-
-exports.name = 'atanh'
-exports.factory = factory
+})

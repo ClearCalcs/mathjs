@@ -1,15 +1,13 @@
-'use strict'
+import { isMatrix } from '../../utils/is.js'
+import { isInteger } from '../../utils/number.js'
+import { factory } from '../../utils/factory.js'
 
-const isInteger = require('../../utils/number').isInteger
+const name = 'partitionSelect'
+const dependencies = ['typed', 'isNumeric', 'isNaN', 'compare']
 
-function factory (type, config, load, typed) {
-  const isNumeric = load(require('../utils/isNumeric'))
-  const isNaN = load(require('../utils/isNaN'))
-  const asc = load(require('../relational/compare'))
-
-  function desc (a, b) {
-    return -asc(a, b)
-  }
+export const createPartitionSelect = /* #__PURE__ */ factory(name, dependencies, ({ typed, isNumeric, isNaN, compare }) => {
+  const asc = compare
+  const desc = (a, b) => -compare(a, b)
 
   /**
    * Partition-based selection of an array or 1D matrix.
@@ -23,13 +21,18 @@ function factory (type, config, load, typed) {
    *
    * Examples:
    *
-   *    math.partitionSelect([5, 10, 1], 2)           // returns 10
-   *    math.partitionSelect(['C', 'B', 'A', 'D'], 1) // returns 'B'
+   *    math.partitionSelect([5, 10, 1], 2)                               // returns 10
+   *    math.partitionSelect(['C', 'B', 'A', 'D'], 1, math.compareText)   // returns 'B'
    *
    *    function sortByLength (a, b) {
    *      return a.length - b.length
    *    }
    *    math.partitionSelect(['Langdon', 'Tom', 'Sara'], 2, sortByLength) // returns 'Langdon'
+   *
+   *    // the input array is mutated
+   *    arr = [5, 2, 1]
+   *    math.partitionSelect(arr, 0) // returns 1, arr is now: [1, 2, 5]
+   *    math.partitionSelect(arr, 1, 'desc') // returns 2, arr is now: [5, 2, 1]
    *
    * See also:
    *
@@ -43,7 +46,7 @@ function factory (type, config, load, typed) {
    *        and 0 when a == b.
    * @return {*} Returns the kth lowest value.
    */
-  return typed('partitionSelect', {
+  return typed(name, {
     'Array | Matrix, number': function (x, k) {
       return _partitionSelect(x, k, asc)
     },
@@ -66,7 +69,7 @@ function factory (type, config, load, typed) {
       throw new Error('k must be a non-negative integer')
     }
 
-    if (type.isMatrix(x)) {
+    if (isMatrix(x)) {
       const size = x.size()
       if (size.length > 1) {
         throw new Error('Only one dimensional matrices supported')
@@ -82,7 +85,7 @@ function factory (type, config, load, typed) {
   /**
    * Quickselect algorithm.
    * Code adapted from:
-   * http://blog.teamleadnet.com/2012/07/quick-select-algorithm-find-kth-element.html
+   * https://blog.teamleadnet.com/2012/07/quick-select-algorithm-find-kth-element.html
    *
    * @param {Array} arr
    * @param {Number} k
@@ -138,7 +141,4 @@ function factory (type, config, load, typed) {
 
     return arr[k]
   }
-}
-
-exports.name = 'partitionSelect'
-exports.factory = factory
+})

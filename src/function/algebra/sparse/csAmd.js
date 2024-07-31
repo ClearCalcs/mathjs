@@ -1,28 +1,29 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
+import { factory } from '../../../utils/factory.js'
+import { csFkeep } from './csFkeep.js'
+import { csFlip } from './csFlip.js'
+import { csTdfs } from './csTdfs.js'
 
-function factory (type, config, load) {
-  const csFlip = load(require('./csFlip'))
-  const csFkeep = load(require('./csFkeep'))
-  const csTdfs = load(require('./csTdfs'))
+const name = 'csAmd'
+const dependencies = [
+  'add',
+  'multiply',
+  'transpose'
+]
 
-  const add = load(require('../../arithmetic/add'))
-  const multiply = load(require('../../arithmetic/multiply'))
-  const transpose = load(require('../../matrix/transpose'))
-
+export const createCsAmd = /* #__PURE__ */ factory(name, dependencies, ({ add, multiply, transpose }) => {
   /**
    * Approximate minimum degree ordering. The minimum degree algorithm is a widely used
    * heuristic for finding a permutation P so that P*A*P' has fewer nonzeros in its factorization
    * than A. It is a gready method that selects the sparsest pivot row and column during the course
    * of a right looking sparse Cholesky factorization.
    *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
-   *
    * @param {Number} order    0: Natural, 1: Cholesky, 2: LU, 3: QR
    * @param {Matrix} m        Sparse Matrix
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
    */
-  const csAmd = function (order, a) {
+  return function csAmd (order, a) {
     // check input parameters
     if (!a || order <= 0 || order > 3) { return null }
     // a matrix arrays
@@ -531,10 +532,4 @@ function factory (type, config, load) {
   function _diag (i, j) {
     return i !== j
   }
-
-  return csAmd
-}
-
-exports.name = 'csAmd'
-exports.path = 'algebra.sparse'
-exports.factory = factory
+})

@@ -1,5 +1,6 @@
-'use strict'
 // function utils
+
+import { lruQueue } from './lruQueue.js'
 
 /**
  * Memoize a given function by caching the computed result.
@@ -8,27 +9,83 @@
  *
  * @param {function} fn                     The function to be memoized.
  *                                          Must be a pure function.
- * @param {function(args: Array)} [hasher]  A custom hash builder.
- *                                          Is JSON.stringify by default.
+ * @param {Object} [options]
+ * @param {function(args: Array): string} [options.hasher]
+ *    A custom hash builder. Is JSON.stringify by default.
+ * @param {number | undefined} [options.limit]
+ *    Maximum number of values that may be cached. Undefined indicates
+ *    unlimited (default)
  * @return {function}                       Returns the memoized function
  */
-exports.memoize = function (fn, hasher) {
+export function memoize (fn, { hasher, limit } = {}) {
+  limit = limit == null ? Number.POSITIVE_INFINITY : limit
+  hasher = hasher == null ? JSON.stringify : hasher
+
   return function memoize () {
     if (typeof memoize.cache !== 'object') {
-      memoize.cache = {}
+      memoize.cache = {
+        values: new Map(),
+        lru: lruQueue(limit || Number.POSITIVE_INFINITY)
+      }
+    }
+    const args = []
+    for (let i = 0; i < arguments.length; i++) {
+      args[i] = arguments[i]
+    }
+    const hash = hasher(args)
+
+    if (memoize.cache.values.has(hash)) {
+      memoize.cache.lru.hit(hash)
+      return memoize.cache.values.get(hash)
     }
 
+    const newVal = fn.apply(fn, args)
+    memoize.cache.values.set(hash, newVal)
+    memoize.cache.values.delete(memoize.cache.lru.hit(hash))
+
+    return newVal
+  }
+}
+
+/**
+ * Memoize a given function by caching all results and the arguments,
+ * and comparing against the arguments of previous results before
+ * executing again.
+ * This is less performant than `memoize` which calculates a hash,
+ * which is very fast to compare. Use `memoizeCompare` only when it is
+ * not possible to create a unique serializable hash from the function
+ * arguments.
+ * The isEqual function must compare two sets of arguments
+ * and return true when equal (can be a deep equality check for example).
+ * @param {function} fn
+ * @param {function(a: *, b: *) : boolean} isEqual
+ * @returns {function}
+ */
+export function memoizeCompare (fn, isEqual) {
+  const memoize = function memoize () {
     const args = []
     for (let i = 0; i < arguments.length; i++) {
       args[i] = arguments[i]
     }
 
-    const hash = hasher ? hasher(args) : JSON.stringify(args)
-    if (!(hash in memoize.cache)) {
-      memoize.cache[hash] = fn.apply(fn, args)
+    for (let c = 0; c < memoize.cache.length; c++) {
+      const cached = memoize.cache[c]
+
+      if (isEqual(args, cached.args)) {
+        // TODO: move this cache entry to the top so recently used entries move up?
+        return cached.res
+      }
     }
-    return memoize.cache[hash]
+
+    const res = fn.apply(fn, args)
+    memoize.cache.unshift({ args, res })
+
+    return res
   }
+
+  memoize.cache = []
+
+  return memoize
 }
 
 /**
@@ -37,21 +94,7 @@ exports.memoize = function (fn, hasher) {
  * @return {number} Returns the maximum number of expected arguments.
  *                  Returns -1 when no signatures where found on the function.
  */
-exports.maxArgumentCount = function (fn) {
-  return Object.keys(fn.signatures || {})
-    .reduce(function (args, signature) {
-      const count = (signature.match(/,/g) || []).length + 1
-      return Math.max(args, count)
-    }, -1)
-}
-
-/**
- * Call a typed function with the
- * @param {function} fn   A function or typed function
- * @return {number} Returns the maximum number of expected arguments.
- *                  Returns -1 when no signatures where found on the function.
- */
-exports.callWithRightArgumentCount = function (fn, args, argCount) {
+export function maxArgumentCount (fn) {
   return Object.keys(fn.signatures || {})
     .reduce(function (args, signature) {
       const count = (signature.match(/,/g) || []).length + 1

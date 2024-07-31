@@ -1,22 +1,22 @@
-'use strict'
+import { containsCollections, deepForEach, reduce } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
+import { safeNumberType } from '../../utils/number.js'
+import { improveErrorMessage } from './utils/improveErrorMessage.js'
 
-const deepForEach = require('../../utils/collection/deepForEach')
-const reduce = require('../../utils/collection/reduce')
-const containsCollections = require('../../utils/collection/containsCollections')
+const name = 'sum'
+const dependencies = ['typed', 'config', 'add', 'numeric']
 
-function factory (type, config, load, typed) {
-  const add = load(require('../arithmetic/addScalar'))
-  const improveErrorMessage = load(require('./utils/improveErrorMessage'))
-
+export const createSum = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, add, numeric }) => {
   /**
    * Compute the sum of a matrix or a list with values.
-   * In case of a (multi dimensional) array or matrix, the sum of all
+   * In case of a multidimensional array or matrix, the sum of all
    * elements will be calculated.
    *
    * Syntax:
    *
    *     math.sum(a, b, c, ...)
    *     math.sum(A)
+   *     math.sum(A, dimension)
    *
    * Examples:
    *
@@ -26,12 +26,12 @@ function factory (type, config, load, typed) {
    *
    * See also:
    *
-   *    mean, median, min, max, prod, std, var
+   *    mean, median, min, max, prod, std, variance, cumsum
    *
-   * @param {... *} args  A single matrix or or multiple scalar values
+   * @param {... *} args  A single matrix or multiple scalar values
    * @return {*} The sum of all values
    */
-  const sum = typed('sum', {
+  return typed(name, {
     // sum([a, b, c, d, ...])
     'Array | Matrix': _sum,
 
@@ -48,13 +48,9 @@ function factory (type, config, load, typed) {
     }
   })
 
-  sum.toTex = undefined // use default template
-
-  return sum
-
   /**
    * Recursively calculate the sum of an n-dimensional array
-   * @param {Array} array
+   * @param {Array | Matrix} array
    * @return {number} sum
    * @private
    */
@@ -69,21 +65,17 @@ function factory (type, config, load, typed) {
       }
     })
 
+    // make sure returning numeric value: parse a string into a numeric value
     if (sum === undefined) {
-      switch (config.number) {
-        case 'number':
-          return 0
-        case 'BigNumber':
-          return new type.BigNumber(0)
-        case 'Fraction':
-          return new type.Fraction(0)
-        default:
-          return 0
-      }
+      sum = numeric(0, config.number)
+    }
+    if (typeof sum === 'string') {
+      sum = numeric(sum, safeNumberType(sum, config))
     }
 
     return sum
   }
+
   function _nsumDim (array, dim) {
     try {
       const sum = reduce(array, dim, add)
@@ -92,7 +84,4 @@ function factory (type, config, load, typed) {
       throw improveErrorMessage(err, 'sum')
     }
   }
-}
-
-exports.name = 'sum'
-exports.factory = factory
+})

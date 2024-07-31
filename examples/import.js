@@ -3,9 +3,8 @@
  * `import` function. The function `import` accepts a module name or an object
  * containing functions and variables.
  */
-
-// load math.js (using node.js)
-const math = require('../index')
+import { create, all } from '../lib/esm/index.js'
+const math = create(all)
 
 /**
  * Define new functions and variables
@@ -21,8 +20,8 @@ math.import({
 print(math.myConstant * 2) // 84
 print(math.hello('user')) // 'hello, user!'
 
-print(math.eval('myConstant + 10')) // 52
-print(math.eval('hello("user")')) // 'hello, user!'
+print(math.evaluate('myConstant + 10')) // 52
+print(math.evaluate('hello("user")')) // 'hello, user!'
 
 /**
  * Import the math library numbers.js, https://github.com/sjkaliski/numbers.js
@@ -39,7 +38,7 @@ try {
   if (math.fibonacci) {
     // calculate fibonacci
     print(math.fibonacci(7)) // 13
-    print(math.eval('fibonacci(7)')) // 13
+    print(math.evaluate('fibonacci(7)')) // 13
   }
 } catch (err) {
   console.log('Warning: To use numbers.js, the library must ' +
@@ -47,7 +46,7 @@ try {
 }
 
 /**
- * Import the math library numeric.js, http://numericjs.com/
+ * Import the math library numeric.js, https://github.com/sloisel/numeric
  * The library must be installed first using npm:
  *     npm install numeric
  */
@@ -60,10 +59,10 @@ try {
 
   if (math.eig) {
     // calculate eigenvalues of a matrix
-    print(math.eval('eig([1, 2; 4, 3])').lambda.x) // [5, -1]
+    print(math.evaluate('eig([1, 2; 4, 3])').lambda.x) // [5, -1]
 
     // solve AX = b
-    const A = math.eval('[1, 2, 3; 2, -1, 1; 3, 0, -1]')
+    const A = math.evaluate('[1, 2, 3; 2, -1, 1; 3, 0, -1]')
     const b = [9, 8, 3]
     print(math.solve(A, b)) // [2, -1, 3]
   }

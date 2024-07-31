@@ -1,8 +1,10 @@
-'use strict'
+import { deepMap } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'isNumeric'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createIsNumeric = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Test whether a value is an numeric value.
    *
@@ -15,38 +17,27 @@ function factory (type, config, load, typed) {
    * Examples:
    *
    *    math.isNumeric(2)                     // returns true
+   *    math.isNumeric('2')                   // returns false
+   *    math.hasNumericValue('2')             // returns true
    *    math.isNumeric(0)                     // returns true
-   *    math.isNumeric(math.bignumber(500))   // returns true
+   *    math.isNumeric(math.bignumber('42'))  // returns true
+   *    math.isNumeric(math.bigint('42'))     // returns true
    *    math.isNumeric(math.fraction(4))      // returns true
-   *    math.isNumeric(math.complex('2-4i')   // returns false
-   *    math.isNumeric('3')                   // returns false
+   *    math.isNumeric(math.complex('2-4i'))  // returns false
    *    math.isNumeric([2.3, 'foo', false])   // returns [true, false, true]
    *
    * See also:
    *
-   *    isZero, isPositive, isNegative, isInteger
+   *    isZero, isPositive, isNegative, isInteger, hasNumericValue
    *
    * @param {*} x       Value to be tested
    * @return {boolean}  Returns true when `x` is a `number`, `BigNumber`,
    *                    `Fraction`, or `boolean`. Returns false for other types.
    *                    Throws an error in case of unknown types.
    */
-  const isNumeric = typed('isNumeric', {
-    'number | BigNumber | Fraction | boolean': function () {
-      return true
-    },
-
-    'Complex | Unit | string | null | undefined | Node': function () {
-      return false
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, isNumeric)
-    }
+  return typed(name, {
+    'number | BigNumber | bigint | Fraction | boolean': () => true,
+    'Complex | Unit | string | null | undefined | Node': () => false,
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  return isNumeric
-}
-
-exports.name = 'isNumeric'
-exports.factory = factory
+})

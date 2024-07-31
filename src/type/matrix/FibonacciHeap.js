@@ -1,9 +1,9 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-function factory (type, config, load, typed) {
-  const smaller = load(require('../../function/relational/smaller'))
-  const larger = load(require('../../function/relational/larger'))
+const name = 'FibonacciHeap'
+const dependencies = ['smaller', 'larger']
 
+export const createFibonacciHeapClass = /* #__PURE__ */ factory(name, dependencies, ({ smaller, larger }) => {
   const oneOverLogPhi = 1.0 / Math.log((1.0 + Math.sqrt(5.0)) / 2.0)
 
   /**
@@ -34,8 +34,8 @@ function factory (type, config, load, typed) {
   FibonacciHeap.prototype.insert = function (key, value) {
     // create node
     const node = {
-      key: key,
-      value: value,
+      key,
+      value,
       degree: 0
     }
     // check we have a node in the minimum
@@ -326,8 +326,4 @@ function factory (type, config, load, typed) {
   }
 
   return FibonacciHeap
-}
-
-exports.name = 'FibonacciHeap'
-exports.path = 'type'
-exports.factory = factory
+}, { isClass: true })

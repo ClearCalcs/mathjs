@@ -1,8 +1,11 @@
-'use strict'
+import { deepMap } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
+import { isNaNNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'isNaN'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createIsNaN = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Test whether a value is NaN (not a number).
    * The function supports types `number`, `BigNumber`, `Fraction`, `Unit` and `Complex`.
@@ -22,44 +25,39 @@ function factory (type, config, load, typed) {
    *    math.isNaN(math.bignumber(0))     // returns false
    *    math.isNaN(math.fraction(-2, 5))  // returns false
    *    math.isNaN('-2')                  // returns false
-   *    math.isNaN([2, 0, -3, NaN]')      // returns [false, false, false, true]
+   *    math.isNaN([2, 0, -3, NaN])       // returns [false, false, false, true]
    *
    * See also:
    *
    *    isNumeric, isNegative, isPositive, isZero, isInteger
    *
-   * @param {number | BigNumber | Fraction | Unit | Array | Matrix} x  Value to be tested
+   * @param {number | BigNumber | bigint | Fraction | Unit | Array | Matrix} x  Value to be tested
    * @return {boolean}  Returns true when `x` is NaN.
    *                    Throws an error in case of an unknown data type.
    */
-  const isNaN = typed('isNaN', {
-    'number': function (x) {
-      return Number.isNaN(x)
-    },
+  return typed(name, {
+    number: isNaNNumber,
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.isNaN()
     },
 
-    'Fraction': function (x) {
+    bigint: function (x) {
       return false
     },
 
-    'Complex': function (x) {
+    Fraction: function (x) {
+      return false
+    },
+
+    Complex: function (x) {
       return x.isNaN()
     },
 
-    'Unit': function (x) {
+    Unit: function (x) {
       return Number.isNaN(x.value)
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, Number.isNaN)
-    }
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  return isNaN
-}
-
-exports.name = 'isNaN'
-exports.factory = factory
+})

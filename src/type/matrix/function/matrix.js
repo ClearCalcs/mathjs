@@ -1,8 +1,11 @@
-'use strict'
+import { factory } from '../../../utils/factory.js'
 
-function factory (type, config, load, typed) {
+const name = 'matrix'
+const dependencies = ['typed', 'Matrix', 'DenseMatrix', 'SparseMatrix']
+
+export const createMatrix = /* #__PURE__ */ factory(name, dependencies, ({ typed, Matrix, DenseMatrix, SparseMatrix }) => {
   /**
-   * Create a Matrix. The function creates a new `math.type.Matrix` object from
+   * Create a Matrix. The function creates a new `math.Matrix` object from
    * an `Array`. A Matrix has utility functions to manipulate the data in the
    * matrix, like getting the size and getting or setting values in the matrix.
    * Supported storage formats are 'dense' and 'sparse'.
@@ -29,16 +32,17 @@ function factory (type, config, load, typed) {
    *    bignumber, boolean, complex, index, number, string, unit, sparse
    *
    * @param {Array | Matrix} [data]    A multi dimensional array
-   * @param {string} [format]          The Matrix storage format
+   * @param {string} [format]          The Matrix storage format, either `'dense'` or `'sparse'`
+   * @param {string} [datatype]        Type of the values
    *
    * @return {Matrix} The created matrix
    */
-  const matrix = typed('matrix', {
+  return typed(name, {
     '': function () {
       return _create([])
     },
 
-    'string': function (format) {
+    string: function (format) {
       return _create([], format)
     },
 
@@ -46,11 +50,11 @@ function factory (type, config, load, typed) {
       return _create([], format, datatype)
     },
 
-    'Array': function (data) {
+    Array: function (data) {
       return _create(data)
     },
 
-    'Matrix': function (data) {
+    Matrix: function (data) {
       return _create(data, data.storage())
     },
 
@@ -58,14 +62,6 @@ function factory (type, config, load, typed) {
 
     'Array | Matrix, string, string': _create
   })
-
-  matrix.toTex = {
-    0: '\\begin{bmatrix}\\end{bmatrix}',
-    1: `\\left(\${args[0]}\\right)`,
-    2: `\\left(\${args[0]}\\right)`
-  }
-
-  return matrix
 
   /**
    * Create a new Matrix with given storage format
@@ -77,12 +73,14 @@ function factory (type, config, load, typed) {
    */
   function _create (data, format, datatype) {
     // get storage format constructor
-    const M = type.Matrix.storage(format || 'default')
+    if (format === 'dense' || format === 'default' || format === undefined) {
+      return new DenseMatrix(data, datatype)
+    }
 
-    // create instance
-    return new M(data, datatype)
+    if (format === 'sparse') {
+      return new SparseMatrix(data, datatype)
+    }
+
+    throw new TypeError('Unknown matrix type ' + JSON.stringify(format) + '.')
   }
-}
-
-exports.name = 'matrix'
-exports.factory = factory
+})

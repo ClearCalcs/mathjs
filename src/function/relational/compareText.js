@@ -1,11 +1,18 @@
-'use strict'
+import { compareText as _compareText } from '../../utils/string.js'
+import { factory } from '../../utils/factory.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const _typeof = load(require('../utils/typeof'))
+const name = 'compareText'
+const dependencies = [
+  'typed',
+  'matrix',
+  'concat'
+]
 
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+_compareText.signature = 'any, any'
+
+export const createCompareText = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, concat }) => {
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Compare two strings lexically. Comparison is case sensitive.
@@ -35,75 +42,12 @@ function factory (type, config, load, typed) {
    * @return {number | Array | DenseMatrix} Returns the result of the comparison:
    *                                        1 when x > y, -1 when x < y, and 0 when x == y.
    */
-  const compareText = typed('compareText', {
+  return typed(name, _compareText, matrixAlgorithmSuite({
+    elop: _compareText,
+    Ds: true
+  }))
+})
 
-    'any, any': _compareText,
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, _compareText)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return compareText(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return compareText(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return compareText(x, matrix(y))
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, _compareText, false)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, _compareText, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, _compareText, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, _compareText, true).valueOf()
-    }
-  })
-
-  /**
-   * Compare two strings
-   * @param {string} x
-   * @param {string} y
-   * @returns {number}
-   * @private
-   */
-  function _compareText (x, y) {
-    // we don't want to convert numbers to string, only accept string input
-    if (!type.isString(x)) {
-      throw new TypeError('Unexpected type of argument in function compareText ' +
-          '(expected: string or Array or Matrix, actual: ' + _typeof(x) + ', index: 0)')
-    }
-    if (!type.isString(y)) {
-      throw new TypeError('Unexpected type of argument in function compareText ' +
-          '(expected: string or Array or Matrix, actual: ' + _typeof(y) + ', index: 1)')
-    }
-
-    return (x === y)
-      ? 0
-      : (x > y ? 1 : -1)
-  }
-
-  compareText.toTex = undefined // use default template
-
-  return compareText
-}
-
-exports.name = 'compareText'
-exports.factory = factory
+export const createCompareTextNumber = /* #__PURE__ */ factory(
+  name, ['typed'], ({ typed }) => typed(name, _compareText)
+)

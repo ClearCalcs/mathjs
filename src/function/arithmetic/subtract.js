@@ -1,22 +1,31 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo01xDSid } from '../../type/matrix/utils/matAlgo01xDSid.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo05xSfSf } from '../../type/matrix/utils/matAlgo05xSfSf.js'
+import { createMatAlgo10xSids } from '../../type/matrix/utils/matAlgo10xSids.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-const DimensionError = require('../../error/DimensionError')
+const name = 'subtract'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'subtractScalar',
+  'unaryMinus',
+  'DenseMatrix',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const addScalar = load(require('./addScalar'))
-  const unaryMinus = load(require('./unaryMinus'))
-
-  const algorithm01 = load(require('../../type/matrix/utils/algorithm01'))
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm05 = load(require('../../type/matrix/utils/algorithm05'))
-  const algorithm10 = load(require('../../type/matrix/utils/algorithm10'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
-
+export const createSubtract = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, subtractScalar, unaryMinus, DenseMatrix, concat }) => {
   // TODO: split function subtract in two: subtract and subtractScalar
+
+  const matAlgo01xDSid = createMatAlgo01xDSid({ typed })
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo05xSfSf = createMatAlgo05xSfSf({ typed, equalScalar })
+  const matAlgo10xSids = createMatAlgo10xSids({ typed, DenseMatrix })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Subtract two values, `x - y`.
@@ -44,134 +53,22 @@ function factory (type, config, load, typed) {
    *
    *    add
    *
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x
-   *            Initial value
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} y
-   *            Value to subtract from `x`
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix}
-   *            Subtraction of `x` and `y`
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} x Initial value
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} y Value to subtract from `x`
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} Subtraction of `x` and `y`
    */
-  const subtract = typed('subtract', {
-
-    'number, number': function (x, y) {
-      return x - y
+  return typed(
+    name,
+    {
+      'any, any': subtractScalar
     },
-
-    'Complex, Complex': function (x, y) {
-      return x.sub(y)
-    },
-
-    'BigNumber, BigNumber': function (x, y) {
-      return x.minus(y)
-    },
-
-    'Fraction, Fraction': function (x, y) {
-      return x.sub(y)
-    },
-
-    'Unit, Unit': function (x, y) {
-      if (x.value === null) {
-        throw new Error('Parameter x contains a unit with undefined value')
-      }
-
-      if (y.value === null) {
-        throw new Error('Parameter y contains a unit with undefined value')
-      }
-
-      if (!x.equalBase(y)) {
-        throw new Error('Units do not match')
-      }
-
-      const res = x.clone()
-      res.value = subtract(res.value, y.value)
-      res.fixPrefix = false
-
-      return res
-    },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      checkEqualDimensions(x, y)
-      return algorithm05(x, y, subtract)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      checkEqualDimensions(x, y)
-      return algorithm03(y, x, subtract, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      checkEqualDimensions(x, y)
-      return algorithm01(x, y, subtract, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      checkEqualDimensions(x, y)
-      return algorithm13(x, y, subtract)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return subtract(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return subtract(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return subtract(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm10(x, unaryMinus(y), addScalar)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, subtract)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm10(y, x, subtract, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, subtract, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, subtract, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, subtract, true).valueOf()
-    }
-  })
-
-  subtract.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['subtract']}\${args[1]}\\right)`
-  }
-
-  return subtract
-}
-
-/**
- * Check whether matrix x and y have the same number of dimensions.
- * Throws a DimensionError when dimensions are not equal
- * @param {Matrix} x
- * @param {Matrix} y
- */
-function checkEqualDimensions (x, y) {
-  const xsize = x.size()
-  const ysize = y.size()
-
-  if (xsize.length !== ysize.length) {
-    throw new DimensionError(xsize.length, ysize.length)
-  }
-}
-
-exports.name = 'subtract'
-exports.factory = factory
+    matrixAlgorithmSuite({
+      elop: subtractScalar,
+      SS: matAlgo05xSfSf,
+      DS: matAlgo01xDSid,
+      SD: matAlgo03xDSf,
+      Ss: matAlgo12xSfs,
+      sS: matAlgo10xSids
+    })
+  )
+})

@@ -1,19 +1,29 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo01xDSid } from '../../type/matrix/utils/matAlgo01xDSid.js'
+import { createMatAlgo04xSidSid } from '../../type/matrix/utils/matAlgo04xSidSid.js'
+import { createMatAlgo10xSids } from '../../type/matrix/utils/matAlgo10xSids.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-const extend = require('../../utils/object').extend
+const name = 'add'
+const dependencies = [
+  'typed',
+  'matrix',
+  'addScalar',
+  'equalScalar',
+  'DenseMatrix',
+  'SparseMatrix',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const addScalar = load(require('./addScalar'))
-  const latex = require('../../utils/latex.js')
-
-  const algorithm01 = load(require('../../type/matrix/utils/algorithm01'))
-  const algorithm04 = load(require('../../type/matrix/utils/algorithm04'))
-  const algorithm10 = load(require('../../type/matrix/utils/algorithm10'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
-
-  /**
+export const createAdd = /* #__PURE__ */ factory(
+  name,
+  dependencies,
+  ({ typed, matrix, addScalar, equalScalar, DenseMatrix, SparseMatrix, concat }) => {
+    const matAlgo01xDSid = createMatAlgo01xDSid({ typed })
+    const matAlgo04xSidSid = createMatAlgo04xSidSid({ typed, equalScalar })
+    const matAlgo10xSids = createMatAlgo10xSids({ typed, DenseMatrix })
+    const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
+    /**
    * Add two or more values, `x + y`.
    * For matrices, the function is evaluated element wise.
    *
@@ -43,89 +53,30 @@ function factory (type, config, load, typed) {
    *
    *    subtract, sum
    *
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x First value to add
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} y Second value to add
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} Sum of `x` and `y`
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} x First value to add
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} y Second value to add
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} Sum of `x` and `y`
    */
-  const add = typed('add', extend({
-    // we extend the signatures of addScalar with signatures dealing with matrices
+    return typed(
+      name,
+      {
+        'any, any': addScalar,
 
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, addScalar)
-    },
+        'any, any, ...any': typed.referToSelf(self => (x, y, rest) => {
+          let result = self(x, y)
 
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm01(x, y, addScalar, false)
-    },
+          for (let i = 0; i < rest.length; i++) {
+            result = self(result, rest[i])
+          }
 
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm01(y, x, addScalar, true)
-    },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm04(x, y, addScalar)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return add(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return add(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return add(x, matrix(y))
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, addScalar, false)
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm10(x, y, addScalar, false)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, addScalar, true)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm10(y, x, addScalar, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, addScalar, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, addScalar, true).valueOf()
-    },
-
-    'any, any': addScalar,
-
-    'any, any, ...any': function (x, y, rest) {
-      let result = add(x, y)
-
-      for (let i = 0; i < rest.length; i++) {
-        result = add(result, rest[i])
-      }
-
-      return result
-    }
-  }, addScalar.signatures))
-
-  add.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['add']}\${args[1]}\\right)`
-  }
-
-  return add
-}
-
-exports.name = 'add'
-exports.factory = factory
+          return result
+        })
+      },
+      matrixAlgorithmSuite({
+        elop: addScalar,
+        DS: matAlgo01xDSid,
+        SS: matAlgo04xSidSid,
+        Ss: matAlgo10xSids
+      })
+    )
+  })

@@ -1,12 +1,14 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'atan'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createAtan = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Calculate the inverse tangent of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with matrix arctangent, this function does not apply
+   * to matrices.
    *
    * Syntax:
    *
@@ -15,40 +17,27 @@ function factory (type, config, load, typed) {
    * Examples:
    *
    *    math.atan(0.5)           // returns number 0.4636476090008061
+   *    math.atan(2)             // returns number 1.1071487177940904
    *    math.atan(math.tan(1.5)) // returns number 1.5
-   *
-   *    math.atan(2)             // returns Complex 1.5707963267948966 -1.3169578969248166 i
    *
    * See also:
    *
    *    tan, asin, acos
    *
-   * @param {number | BigNumber | Complex | Array | Matrix} x   Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} The arc tangent of x
+   * @param {number | BigNumber | Complex} x   Function input
+   * @return {number | BigNumber | Complex} The arc tangent of x
    */
-  const atan = typed('atan', {
-    'number': function (x) {
+  return typed('atan', {
+    number: function (x) {
       return Math.atan(x)
     },
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.atan()
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.atan()
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since atan(0) = 0
-      return deepMap(x, atan, true)
     }
   })
-
-  atan.toTex = { 1: `\\tan^{-1}\\left(\${args[0]}\\right)` }
-
-  return atan
-}
-
-exports.name = 'atan'
-exports.factory = factory
+})

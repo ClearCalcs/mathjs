@@ -1,23 +1,43 @@
-'use strict'
+import { factory } from '../../../utils/factory.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../../type/matrix/function/matrix'))
-  const zeros = load(require('../../matrix/zeros'))
-  const identity = load(require('../../matrix/identity'))
+const name = 'qr'
+const dependencies = [
+  'typed',
+  'matrix',
+  'zeros',
+  'identity',
+  'isZero',
+  'equal',
+  'sign',
+  'sqrt',
+  'conj',
+  'unaryMinus',
+  'addScalar',
+  'divideScalar',
+  'multiplyScalar',
+  'subtractScalar',
+  'complex'
+]
 
-  const isZero = load(require('../../utils/isZero'))
-  const unequal = load(require('../../relational/unequal'))
-
-  const sign = load(require('../../arithmetic/sign'))
-  const sqrt = load(require('../../arithmetic/sqrt'))
-  const conj = load(require('../../complex/conj'))
-
-  const unaryMinus = load(require('../../arithmetic/unaryMinus'))
-  const addScalar = load(require('../../arithmetic/addScalar'))
-  const divideScalar = load(require('../../arithmetic/divideScalar'))
-  const multiplyScalar = load(require('../../arithmetic/multiplyScalar'))
-  const subtract = load(require('../../arithmetic/subtract'))
-
+export const createQr = /* #__PURE__ */ factory(name, dependencies, (
+  {
+    typed,
+    matrix,
+    zeros,
+    identity,
+    isZero,
+    equal,
+    sign,
+    sqrt,
+    conj,
+    unaryMinus,
+    addScalar,
+    divideScalar,
+    multiplyScalar,
+    subtractScalar,
+    complex
+  }
+) => {
   /**
    * Calculate the Matrix QR decomposition. Matrix `A` is decomposed in
    * two matrices (`Q`, `R`) where `Q` is an
@@ -61,17 +81,17 @@ function factory (type, config, load, typed) {
    * @return {{Q: Array | Matrix, R: Array | Matrix}} Q: the orthogonal
    * matrix and R: the upper triangular matrix
    */
-  const qr = typed('qr', {
+  return Object.assign(typed(name, {
 
-    'DenseMatrix': function (m) {
+    DenseMatrix: function (m) {
       return _denseQR(m)
     },
 
-    'SparseMatrix': function (m) {
+    SparseMatrix: function (m) {
       return _sparseQR(m)
     },
 
-    'Array': function (a) {
+    Array: function (a) {
       // create dense matrix from array
       const m = matrix(a)
       // lup, use matrix implementation
@@ -82,9 +102,9 @@ function factory (type, config, load, typed) {
         R: r.R.valueOf()
       }
     }
-  })
+  }), { _denseQRimpl })
 
-  function _denseQR (m) {
+  function _denseQRimpl (m) {
     // rows & columns (m x n)
     const rows = m._size[0] // m
     const cols = m._size[1] // n
@@ -126,7 +146,7 @@ function factory (type, config, load, typed) {
        */
 
       const pivot = Rdata[k][k]
-      const sgn = unaryMinus(sign(pivot))
+      const sgn = unaryMinus(equal(pivot, 0) ? 1 : sign(pivot))
       const conjSgn = conj(sgn)
 
       let alphaSquared = 0
@@ -139,7 +159,7 @@ function factory (type, config, load, typed) {
 
       if (!isZero(alpha)) {
         // first element in vector u
-        const u1 = subtract(pivot, alpha)
+        const u1 = subtractScalar(pivot, alpha)
 
         // w = v * u1 / |u|    (only elements k to (rows-1) are used)
         w[k] = 1
@@ -178,7 +198,7 @@ function factory (type, config, load, typed) {
 
           for (i = k; i < rows; i++) {
             Rdata[i][j] = multiplyScalar(
-              subtract(Rdata[i][j], multiplyScalar(w[i], s)),
+              subtractScalar(Rdata[i][j], multiplyScalar(w[i], s)),
               conjSgn
             )
           }
@@ -203,7 +223,7 @@ function factory (type, config, load, typed) {
 
           for (j = k; j < rows; ++j) {
             Qdata[i][j] = divideScalar(
-              subtract(Qdata[i][j], multiplyScalar(s, conj(w[j]))),
+              subtractScalar(Qdata[i][j], multiplyScalar(s, conj(w[j]))),
               conjSgn
             )
           }
@@ -211,36 +231,33 @@ function factory (type, config, load, typed) {
       }
     }
 
-    // coerse almost zero elements to zero
-    // TODO I feel uneasy just zeroing these values
-    for (i = 0; i < rows; ++i) {
-      for (j = 0; j < i && j < cols; ++j) {
-        if (unequal(0, divideScalar(Rdata[i][j], 1e5))) {
-          throw new Error('math.qr(): unknown error - ' +
-           'R is not lower triangular (element (' +
-            i + ', ' + j + ')  = ' + Rdata[i][j] + ')'
-          )
-        }
-        Rdata[i][j] = multiplyScalar(Rdata[i][j], 0)
-      }
-    }
-
     // return matrices
     return {
-      Q: Q,
-      R: R,
+      Q,
+      R,
       toString: function () {
         return 'Q: ' + this.Q.toString() + '\nR: ' + this.R.toString()
       }
     }
   }
 
+  function _denseQR (m) {
+    const ret = _denseQRimpl(m)
+    const Rdata = ret.R._data
+    if (m._data.length > 0) {
+      const zero = Rdata[0][0].type === 'Complex' ? complex(0) : 0
+
+      for (let i = 0; i < Rdata.length; ++i) {
+        for (let j = 0; j < i && j < (Rdata[0] || []).length; ++j) {
+          Rdata[i][j] = zero
+        }
+      }
+    }
+
+    return ret
+  }
+
   function _sparseQR (m) {
     throw new Error('qr not implemented for sparse matrices yet')
   }
-
-  return qr
-}
-
-exports.name = 'qr'
-exports.factory = factory
+})

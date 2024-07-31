@@ -1,15 +1,24 @@
-'use strict'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatAlgo05xSfSf } from '../../type/matrix/utils/matAlgo05xSfSf.js'
+import { factory } from '../../utils/factory.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
+import { orNumber } from '../../plain/number/index.js'
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
+const name = 'or'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'DenseMatrix',
+  'concat'
+]
 
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm05 = load(require('../../type/matrix/utils/algorithm05'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createOr = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, DenseMatrix, concat }) => {
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo05xSfSf = createMatAlgo05xSfSf({ typed, equalScalar })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Logical `or`. Test if at least one value is defined with a nonzero/nonempty value.
@@ -34,93 +43,33 @@ function factory (type, config, load, typed) {
    *
    *    and, not, xor
    *
-   * @param  {number | BigNumber | Complex | Unit | Array | Matrix} x First value to check
-   * @param  {number | BigNumber | Complex | Unit | Array | Matrix} y Second value to check
+   * @param  {number | BigNumber | bigint | Complex | Unit | Array | Matrix} x First value to check
+   * @param  {number | BigNumber | bigint | Complex | Unit | Array | Matrix} y Second value to check
    * @return {boolean | Array | Matrix}
    *            Returns true when one of the inputs is defined with a nonzero/nonempty value.
    */
-  const or = typed('or', {
+  return typed(
+    name,
+    {
+      'number, number': orNumber,
 
-    'number, number': function (x, y) {
-      return !!(x || y)
+      'Complex, Complex': function (x, y) {
+        return (x.re !== 0 || x.im !== 0) || (y.re !== 0 || y.im !== 0)
+      },
+
+      'BigNumber, BigNumber': function (x, y) {
+        return (!x.isZero() && !x.isNaN()) || (!y.isZero() && !y.isNaN())
+      },
+
+      'bigint, bigint': orNumber,
+
+      'Unit, Unit': typed.referToSelf(self =>
+        (x, y) => self(x.value || 0, y.value || 0))
     },
-
-    'Complex, Complex': function (x, y) {
-      return (x.re !== 0 || x.im !== 0) || (y.re !== 0 || y.im !== 0)
-    },
-
-    'BigNumber, BigNumber': function (x, y) {
-      return (!x.isZero() && !x.isNaN()) || (!y.isZero() && !y.isNaN())
-    },
-
-    'Unit, Unit': function (x, y) {
-      return or(x.value || 0, y.value || 0)
-    },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm05(x, y, or)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm03(y, x, or, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, or, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, or)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return or(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return or(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return or(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm12(x, y, or, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, or, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm12(y, x, or, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, or, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, or, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, or, true).valueOf()
-    }
-  })
-
-  or.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['or']}\${args[1]}\\right)`
-  }
-
-  return or
-}
-
-exports.name = 'or'
-exports.factory = factory
+    matrixAlgorithmSuite({
+      SS: matAlgo05xSfSf,
+      DS: matAlgo03xDSf,
+      Ss: matAlgo12xSfs
+    })
+  )
+})

@@ -1,12 +1,17 @@
-'use strict'
+// Copyright (c) 2006-2024, Timothy A. Davis, All Rights Reserved.
+// SPDX-License-Identifier: LGPL-2.1+
+// https://github.com/DrTimothyAldenDavis/SuiteSparse/tree/dev/CSparse/Source
+import { csReach } from './csReach.js'
+import { factory } from '../../../utils/factory.js'
 
-function factory (type, config, load) {
-  const divideScalar = load(require('../../arithmetic/divideScalar'))
-  const multiply = load(require('../../arithmetic/multiply'))
-  const subtract = load(require('../../arithmetic/subtract'))
+const name = 'csSpsolve'
+const dependencies = [
+  'divideScalar',
+  'multiply',
+  'subtract'
+]
 
-  const csReach = load(require('./csReach'))
-
+export const createCsSpsolve = /* #__PURE__ */ factory(name, dependencies, ({ divideScalar, multiply, subtract }) => {
   /**
    * The function csSpsolve() computes the solution to G * x = bk, where bk is the
    * kth column of B. When lo is true, the function assumes G = L is lower triangular with the
@@ -23,10 +28,8 @@ function factory (type, config, load) {
    * @param {boolean} lo              The lower (true) upper triangular (false) flag
    *
    * @return {Number}                 The index for the nonzero pattern
-   *
-   * Reference: http://faculty.cse.tamu.edu/davis/publications.html
    */
-  const csSpsolve = function (g, b, k, xi, x, pinv, lo) {
+  return function csSpsolve (g, b, k, xi, x, pinv, lo) {
     // g arrays
     const gvalues = g._values
     const gindex = g._index
@@ -73,10 +76,4 @@ function factory (type, config, load) {
     // return top of stack
     return top
   }
-
-  return csSpsolve
-}
-
-exports.name = 'csSpsolve'
-exports.path = 'algebra.sparse'
-exports.factory = factory
+})

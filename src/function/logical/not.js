@@ -1,10 +1,11 @@
-'use strict'
+import { deepMap } from '../../utils/collection.js'
+import { factory } from '../../utils/factory.js'
+import { notNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'not'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
+export const createNot = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Logical `not`. Flips boolean value of a given parameter.
    * For matrices, the function is evaluated element wise.
@@ -26,38 +27,27 @@ function factory (type, config, load, typed) {
    *
    *    and, or, xor
    *
-   * @param  {number | BigNumber | Complex | Unit | Array | Matrix} x First value to check
+   * @param  {number | BigNumber | bigint | Complex | Unit | Array | Matrix} x First value to check
    * @return {boolean | Array | Matrix}
    *            Returns true when input is a zero or empty value.
    */
-  const not = typed('not', {
-    'number': function (x) {
-      return !x
-    },
+  return typed(name, {
+    'null | undefined': () => true,
 
-    'Complex': function (x) {
+    number: notNumber,
+
+    Complex: function (x) {
       return x.re === 0 && x.im === 0
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.isZero() || x.isNaN()
     },
 
-    'Unit': function (x) {
-      return x.value !== null ? not(x.value) : true
-    },
+    bigint: x => !x,
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, not)
-    }
+    Unit: typed.referToSelf(self => x => typed.find(self, x.valueType())(x.value)),
+
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  not.toTex = {
-    1: latex.operators['not'] + `\\left(\${args[0]}\\right)`
-  }
-
-  return not
-}
-
-exports.name = 'not'
-exports.factory = factory
+})

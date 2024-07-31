@@ -1,12 +1,17 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createTrigUnit } from './trigUnit.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'sin'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createSin = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
+  const trigUnit = createTrigUnit({ typed })
+
   /**
    * Calculate the sine of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix sine, this function does not apply
+   * to matrices.
    *
    * Syntax:
    *
@@ -26,37 +31,11 @@ function factory (type, config, load, typed) {
    *
    *    cos, tan
    *
-   * @param {number | BigNumber | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} Sine of x
+   * @param {number | BigNumber | Complex | Unit} x  Function input
+   * @return {number | BigNumber | Complex} Sine of x
    */
-  const sin = typed('sin', {
-    'number': Math.sin,
-
-    'Complex': function (x) {
-      return x.sin()
-    },
-
-    'BigNumber': function (x) {
-      return x.sin()
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function sin is no angle')
-      }
-      return sin(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since sin(0) = 0
-      return deepMap(x, sin, true)
-    }
-  })
-
-  sin.toTex = { 1: `\\sin\\left(\${args[0]}\\right)` }
-
-  return sin
-}
-
-exports.name = 'sin'
-exports.factory = factory
+  return typed(name, {
+    number: Math.sin,
+    'Complex | BigNumber': x => x.sin()
+  }, trigUnit)
+})

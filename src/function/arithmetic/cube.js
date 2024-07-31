@@ -1,11 +1,14 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { cubeNumber } from '../../plain/number/index.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'cube'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createCube = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Compute the cube of a value, `x * x * x`.
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with `pow(M,3)`, this function does not apply to matrices.
+   * If you wish to cube every entry of a matrix, see the examples.
    *
    * Syntax:
    *
@@ -18,46 +21,36 @@ function factory (type, config, load, typed) {
    *    math.cube(4)            // returns number 64
    *    4 * 4 * 4               // returns number 64
    *
-   *    math.cube([1, 2, 3, 4]) // returns Array [1, 8, 27, 64]
+   *    math.map([1, 2, 3, 4], math.cube) // returns Array [1, 8, 27, 64]
    *
    * See also:
    *
    *    multiply, square, pow, cbrt
    *
-   * @param  {number | BigNumber | Fraction | Complex | Array | Matrix | Unit} x  Number for which to calculate the cube
-   * @return {number | BigNumber | Fraction | Complex | Array | Matrix | Unit} Cube of x
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit} x  Number for which to calculate the cube
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit} Cube of x
    */
-  const cube = typed('cube', {
-    'number': function (x) {
-      return x * x * x
-    },
+  return typed(name, {
+    number: cubeNumber,
 
-    'Complex': function (x) {
+    Complex: function (x) {
       return x.mul(x).mul(x) // Is faster than pow(x, 3)
     },
 
-    'BigNumber': function (x) {
+    BigNumber: function (x) {
       return x.times(x).times(x)
     },
 
-    'Fraction': function (x) {
+    bigint: function (x) {
+      return x * x * x
+    },
+
+    Fraction: function (x) {
       return x.pow(3) // Is faster than mul()mul()mul()
     },
 
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since cube(0) = 0
-      return deepMap(x, cube, true)
-    },
-
-    'Unit': function (x) {
+    Unit: function (x) {
       return x.pow(3)
     }
   })
-
-  cube.toTex = { 1: `\\left(\${args[0]}\\right)^3` }
-
-  return cube
-}
-
-exports.name = 'cube'
-exports.factory = factory
+})

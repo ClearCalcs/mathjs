@@ -1,15 +1,28 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo02xDS0 } from '../../type/matrix/utils/matAlgo02xDS0.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo09xS0Sf } from '../../type/matrix/utils/matAlgo09xS0Sf.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
+const name = 'atan2'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'BigNumber',
+  'DenseMatrix',
+  'concat'
+]
 
-  const algorithm02 = load(require('../../type/matrix/utils/algorithm02'))
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm09 = load(require('../../type/matrix/utils/algorithm09'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createAtan2 = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, BigNumber, DenseMatrix, concat }) => {
+  const matAlgo02xDS0 = createMatAlgo02xDS0({ typed, equalScalar })
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo09xS0Sf = createMatAlgo09xS0Sf({ typed, equalScalar })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Calculate the inverse tangent function with two arguments, y/x.
@@ -30,7 +43,7 @@ function factory (type, config, load, typed) {
    *    const x = math.cos(angle)
    *    const y = math.sin(angle)
    *
-   *    math.atan(2)             // returns Complex 1.5707963267948966 -1.3169578969248166 i
+   *    math.atan(2)             // returns number 1.1071487177940904
    *
    * See also:
    *
@@ -40,78 +53,25 @@ function factory (type, config, load, typed) {
    * @param {number | Array | Matrix} x  First dimension
    * @return {number | Array | Matrix} Four-quadrant inverse tangent
    */
-  const atan2 = typed('atan2', {
+  return typed(
+    name,
+    {
+      'number, number': Math.atan2,
 
-    'number, number': Math.atan2,
+      // Complex numbers doesn't seem to have a reasonable implementation of
+      // atan2(). Even Matlab removed the support, after they only calculated
+      // the atan only on base of the real part of the numbers and ignored
+      // the imaginary.
 
-    // Complex numbers doesn't seem to have a reasonable implementation of
-    // atan2(). Even Matlab removed the support, after they only calculated
-    // the atan only on base of the real part of the numbers and ignored the imaginary.
-
-    'BigNumber, BigNumber': function (y, x) {
-      return type.BigNumber.atan2(y, x)
+      'BigNumber, BigNumber': (y, x) => BigNumber.atan2(y, x)
     },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm09(x, y, atan2, false)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      // mind the order of y and x!
-      return algorithm02(y, x, atan2, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, atan2, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, atan2)
-    },
-
-    'Array, Array': function (x, y) {
-      return atan2(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      return atan2(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      return atan2(x, matrix(y))
-    },
-
-    'SparseMatrix, number | BigNumber': function (x, y) {
-      return algorithm11(x, y, atan2, false)
-    },
-
-    'DenseMatrix, number | BigNumber': function (x, y) {
-      return algorithm14(x, y, atan2, false)
-    },
-
-    'number | BigNumber, SparseMatrix': function (x, y) {
-      // mind the order of y and x
-      return algorithm12(y, x, atan2, true)
-    },
-
-    'number | BigNumber, DenseMatrix': function (x, y) {
-      // mind the order of y and x
-      return algorithm14(y, x, atan2, true)
-    },
-
-    'Array, number | BigNumber': function (x, y) {
-      return algorithm14(matrix(x), y, atan2, false).valueOf()
-    },
-
-    'number | BigNumber, Array': function (x, y) {
-      return algorithm14(matrix(y), x, atan2, true).valueOf()
-    }
-  })
-
-  atan2.toTex = { 2: `\\mathrm{atan2}\\left(\${args}\\right)` }
-
-  return atan2
-}
-
-exports.name = 'atan2'
-exports.factory = factory
+    matrixAlgorithmSuite({
+      scalar: 'number | BigNumber',
+      SS: matAlgo09xS0Sf,
+      DS: matAlgo03xDSf,
+      SD: matAlgo02xDS0,
+      Ss: matAlgo11xS0s,
+      sS: matAlgo12xSfs
+    })
+  )
+})

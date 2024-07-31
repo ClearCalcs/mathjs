@@ -1,15 +1,21 @@
-'use strict'
+/* eslint-disable no-loss-of-precision */
 
-const deepMap = require('../../utils/collection/deepMap')
-const sign = require('../../utils/number').sign
+import { deepMap } from '../../utils/collection.js'
+import { sign } from '../../utils/number.js'
+import { factory } from '../../utils/factory.js'
 
-function factory (type, config, load, typed) {
+const name = 'erf'
+const dependencies = [
+  'typed'
+]
+
+export const createErf = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Compute the erf function of a value using a rational Chebyshev
    * approximations for different intervals of x.
    *
    * This is a translation of W. J. Cody's Fortran implementation from 1987
-   * ( http://www.netlib.org/specfun/erf ). See the AMS publication
+   * ( https://www.netlib.org/specfun/erf ). See the AMS publication
    * "Rational Chebyshev Approximations for the Error Function" by W. J. Cody
    * for an explanation of this process.
    *
@@ -25,11 +31,14 @@ function factory (type, config, load, typed) {
    *    math.erf(-0.5)   // returns -0.5204998778130465
    *    math.erf(4)      // returns 0.9999999845827421
    *
+   * See also:
+   *    zeta
+   *
    * @param {number | Array | Matrix} x   A real number
    * @return {number | Array | Matrix}    The erf of `x`
    */
-  const erf = typed('erf', {
-    'number': function (x) {
+  return typed('name', {
+    number: function (x) {
       const y = Math.abs(x)
 
       if (y >= MAX_NUM) {
@@ -44,16 +53,7 @@ function factory (type, config, load, typed) {
       return sign(x) * (1 - erfc3(y))
     },
 
-    // TODO: Not sure if there's a way to guarantee some degree of accuracy here.
-    //  Perhaps it would be best to set the precision of the number to that which
-    //  is guaranteed by erf()
-    'BigNumber': function (n) {
-      return new type.BigNumber(erf(n.toNumber()))
-    },
-
-    'Array | Matrix': function (n) {
-      return deepMap(n, erf)
-    }
+    'Array | Matrix': typed.referToSelf(self => n => deepMap(n, self))
 
     // TODO: For complex numbers, use the approximation for the Faddeeva function
     //  from "More Efficient Computation of the Complex Error Function" (AMS)
@@ -126,11 +126,7 @@ function factory (type, config, load, typed) {
     const del = (y - ysq) * (y + ysq)
     return Math.exp(-ysq * ysq) * Math.exp(-del) * result
   }
-
-  erf.toTex = { 1: `erf\\left(\${args[0]}\\right)` }
-
-  return erf
-}
+})
 
 /**
  * Upper bound for the first approximation interval, 0 <= x <= THRESH
@@ -190,6 +186,3 @@ const Q = [[
  * return 1
  */
 const MAX_NUM = Math.pow(2, 53)
-
-exports.name = 'erf'
-exports.factory = factory

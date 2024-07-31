@@ -1,17 +1,14 @@
-'use strict'
+import { flatten } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const flatten = require('../../utils/array').flatten
+const name = 'setCartesian'
+const dependencies = ['typed', 'size', 'subset', 'compareNatural', 'Index', 'DenseMatrix']
 
-function factory (type, config, load, typed) {
-  const MatrixIndex = load(require('../../type/matrix/MatrixIndex'))
-  const DenseMatrix = load(require('../../type/matrix/DenseMatrix'))
-  const size = load(require('../matrix/size'))
-  const subset = load(require('../matrix/subset'))
-  const compareNatural = load(require('../relational/compareNatural'))
-
+export const createSetCartesian = /* #__PURE__ */ factory(name, dependencies, ({ typed, size, subset, compareNatural, Index, DenseMatrix }) => {
   /**
    * Create the cartesian product of two (multi)sets.
-   * Multi-dimension arrays will be converted to single-dimension arrays before the operation.
+   * Multi-dimension arrays will be converted to single-dimension arrays
+   * and the values will be sorted in ascending order before the operation.
    *
    * Syntax:
    *
@@ -20,6 +17,7 @@ function factory (type, config, load, typed) {
    * Examples:
    *
    *    math.setCartesian([1, 2], [3, 4])        // returns [[1, 3], [1, 4], [2, 3], [2, 4]]
+   *    math.setCartesian([4, 3], [2, 1])        // returns [[3, 1], [3, 2], [4, 1], [4, 2]]
    *
    * See also:
    *
@@ -29,11 +27,11 @@ function factory (type, config, load, typed) {
    * @param {Array | Matrix}    a2  A (multi)set
    * @return {Array | Matrix}    The cartesian product of two (multi)sets
    */
-  const setCartesian = typed('setCartesian', {
+  return typed(name, {
     'Array | Matrix, Array | Matrix': function (a1, a2) {
       let result = []
 
-      if (subset(size(a1), new MatrixIndex(0)) !== 0 && subset(size(a2), new MatrixIndex(0)) !== 0) { // if any of them is empty, return empty
+      if (subset(size(a1), new Index(0)) !== 0 && subset(size(a2), new Index(0)) !== 0) { // if any of them is empty, return empty
         const b1 = flatten(Array.isArray(a1) ? a1 : a1.toArray()).sort(compareNatural)
         const b2 = flatten(Array.isArray(a2) ? a2 : a2.toArray()).sort(compareNatural)
         result = []
@@ -51,9 +49,4 @@ function factory (type, config, load, typed) {
       return new DenseMatrix(result)
     }
   })
-
-  return setCartesian
-}
-
-exports.name = 'setCartesian'
-exports.factory = factory
+})

@@ -1,6 +1,4 @@
-'use strict'
-
 // Reserved keywords not allowed to use in the parser
-module.exports = {
-  end: true
-}
+export const keywords = new Set([
+  'end'
+])

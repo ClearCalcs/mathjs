@@ -1,143 +1,22 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { isMatrix } from '../../utils/is.js'
+import { arraySize } from '../../utils/array.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo14xDs } from '../../type/matrix/utils/matAlgo14xDs.js'
 
-const extend = require('../../utils/object').extend
-const array = require('../../utils/array')
+const name = 'multiply'
+const dependencies = [
+  'typed',
+  'matrix',
+  'addScalar',
+  'multiplyScalar',
+  'equalScalar',
+  'dot'
+]
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const addScalar = load(require('./addScalar'))
-  const multiplyScalar = load(require('./multiplyScalar'))
-  const equalScalar = load(require('../relational/equalScalar'))
-
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
-
-  const DenseMatrix = type.DenseMatrix
-  const SparseMatrix = type.SparseMatrix
-
-  /**
-   * Multiply two or more values, `x * y`.
-   * For matrices, the matrix product is calculated.
-   *
-   * Syntax:
-   *
-   *    math.multiply(x, y)
-   *    math.multiply(x, y, z, ...)
-   *
-   * Examples:
-   *
-   *    math.multiply(4, 5.2)        // returns number 20.8
-   *    math.multiply(2, 3, 4)       // returns number 24
-   *
-   *    const a = math.complex(2, 3)
-   *    const b = math.complex(4, 1)
-   *    math.multiply(a, b)          // returns Complex 5 + 14i
-   *
-   *    const c = [[1, 2], [4, 3]]
-   *    const d = [[1, 2, 3], [3, -4, 7]]
-   *    math.multiply(c, d)          // returns Array [[7, -6, 17], [13, -4, 33]]
-   *
-   *    const e = math.unit('2.1 km')
-   *    math.multiply(3, e)          // returns Unit 6.3 km
-   *
-   * See also:
-   *
-   *    divide, prod, cross, dot
-   *
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} x First value to multiply
-   * @param  {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} y Second value to multiply
-   * @return {number | BigNumber | Fraction | Complex | Unit | Array | Matrix} Multiplication of `x` and `y`
-   */
-  const multiply = typed('multiply', extend({
-    // we extend the signatures of multiplyScalar with signatures dealing with matrices
-
-    'Array, Array': function (x, y) {
-      // check dimensions
-      _validateMatrixDimensions(array.size(x), array.size(y))
-
-      // use dense matrix implementation
-      const m = multiply(matrix(x), matrix(y))
-      // return array or scalar
-      return type.isMatrix(m) ? m.valueOf() : m
-    },
-
-    'Matrix, Matrix': function (x, y) {
-      // dimensions
-      const xsize = x.size()
-      const ysize = y.size()
-
-      // check dimensions
-      _validateMatrixDimensions(xsize, ysize)
-
-      // process dimensions
-      if (xsize.length === 1) {
-        // process y dimensions
-        if (ysize.length === 1) {
-          // Vector * Vector
-          return _multiplyVectorVector(x, y, xsize[0])
-        }
-        // Vector * Matrix
-        return _multiplyVectorMatrix(x, y)
-      }
-      // process y dimensions
-      if (ysize.length === 1) {
-        // Matrix * Vector
-        return _multiplyMatrixVector(x, y)
-      }
-      // Matrix * Matrix
-      return _multiplyMatrixMatrix(x, y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use Matrix * Matrix implementation
-      return multiply(x, matrix(y))
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use Matrix * Matrix implementation
-      return multiply(matrix(x, y.storage()), y)
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm11(x, y, multiplyScalar, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, multiplyScalar, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm11(y, x, multiplyScalar, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, multiplyScalar, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, multiplyScalar, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, multiplyScalar, true).valueOf()
-    },
-
-    'any, any': multiplyScalar,
-
-    'any, any, ...any': function (x, y, rest) {
-      let result = multiply(x, y)
-
-      for (let i = 0; i < rest.length; i++) {
-        result = multiply(result, rest[i])
-      }
-
-      return result
-    }
-  }, multiplyScalar.signatures))
+export const createMultiply = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, addScalar, multiplyScalar, equalScalar, dot }) => {
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo14xDs = createMatAlgo14xDs({ typed })
 
   function _validateMatrixDimensions (size1, size2) {
     // check left operand dimensions
@@ -200,38 +79,7 @@ function factory (type, config, load, typed) {
   function _multiplyVectorVector (a, b, n) {
     // check empty vector
     if (n === 0) { throw new Error('Cannot multiply two empty vectors') }
-
-    // a dense
-    const adata = a._data
-    const adt = a._datatype
-    // b dense
-    const bdata = b._data
-    const bdt = b._datatype
-
-    // datatype
-    let dt
-    // addScalar signature to use
-    let af = addScalar
-    // multiplyScalar signature to use
-    let mf = multiplyScalar
-
-    // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
-      // datatype
-      dt = adt
-      // find signatures that matches (dt, dt)
-      af = typed.find(addScalar, [dt, dt])
-      mf = typed.find(multiplyScalar, [dt, dt])
-    }
-
-    // result (do not initialize it with zero)
-    let c = mf(adata[0], bdata[0])
-    // loop data
-    for (let i = 1; i < n; i++) {
-      // multiply and accumulate
-      c = af(c, mf(adata[i], bdata[i]))
-    }
-    return c
+    return dot(a, b)
   }
 
   /**
@@ -262,11 +110,11 @@ function factory (type, config, load, typed) {
     // a dense
     const adata = a._data
     const asize = a._size
-    const adt = a._datatype
+    const adt = a._datatype || a.getDataType()
     // b dense
     const bdata = b._data
     const bsize = b._size
-    const bdt = b._datatype
+    const bdt = b._datatype || b.getDataType()
     // rows & columns
     const alength = asize[0]
     const bcolumns = bsize[1]
@@ -279,7 +127,7 @@ function factory (type, config, load, typed) {
     let mf = multiplyScalar
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -303,10 +151,10 @@ function factory (type, config, load, typed) {
     }
 
     // return matrix
-    return new DenseMatrix({
+    return a.createDenseMatrix({
       data: c,
       size: [bcolumns],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
   }
 
@@ -350,10 +198,10 @@ function factory (type, config, load, typed) {
     // a dense
     const adata = a._data
     const asize = a._size
-    const adt = a._datatype
+    const adt = a._datatype || a.getDataType()
     // b dense
     const bdata = b._data
-    const bdt = b._datatype
+    const bdt = b._datatype || b.getDataType()
     // rows & columns
     const arows = asize[0]
     const acolumns = asize[1]
@@ -366,7 +214,7 @@ function factory (type, config, load, typed) {
     let mf = multiplyScalar
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -392,10 +240,10 @@ function factory (type, config, load, typed) {
     }
 
     // return matrix
-    return new DenseMatrix({
+    return a.createDenseMatrix({
       data: c,
       size: [arows],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
   }
 
@@ -407,15 +255,15 @@ function factory (type, config, load, typed) {
    *
    * @return {Matrix}             DenseMatrix    (MxC)
    */
-  function _multiplyDenseMatrixDenseMatrix (a, b) {
+  function _multiplyDenseMatrixDenseMatrix (a, b) { // getDataType()
     // a dense
     const adata = a._data
     const asize = a._size
-    const adt = a._datatype
+    const adt = a._datatype || a.getDataType()
     // b dense
     const bdata = b._data
     const bsize = b._size
-    const bdt = b._datatype
+    const bdt = b._datatype || b.getDataType()
     // rows & columns
     const arows = asize[0]
     const acolumns = asize[1]
@@ -429,7 +277,7 @@ function factory (type, config, load, typed) {
     let mf = multiplyScalar
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -460,10 +308,10 @@ function factory (type, config, load, typed) {
     }
 
     // return matrix
-    return new DenseMatrix({
+    return a.createDenseMatrix({
       data: c,
       size: [arows, bcolumns],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
   }
 
@@ -479,13 +327,13 @@ function factory (type, config, load, typed) {
     // a dense
     const adata = a._data
     const asize = a._size
-    const adt = a._datatype
+    const adt = a._datatype || a.getDataType()
     // b sparse
     const bvalues = b._values
     const bindex = b._index
     const bptr = b._ptr
     const bsize = b._size
-    const bdt = b._datatype
+    const bdt = b._datatype || b._data === undefined ? b._datatype : b.getDataType()
     // validate b matrix
     if (!bvalues) { throw new Error('Cannot multiply Dense Matrix times Pattern only Matrix') }
     // rows & columns
@@ -504,7 +352,7 @@ function factory (type, config, load, typed) {
     let zero = 0
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -520,12 +368,12 @@ function factory (type, config, load, typed) {
     const cindex = []
     const cptr = []
     // c matrix
-    const c = new SparseMatrix({
+    const c = b.createSparseMatrix({
       values: cvalues,
       index: cindex,
       ptr: cptr,
       size: [arows, bcolumns],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
 
     // loop b columns
@@ -589,12 +437,12 @@ function factory (type, config, load, typed) {
     const avalues = a._values
     const aindex = a._index
     const aptr = a._ptr
-    const adt = a._datatype
+    const adt = a._datatype || a._data === undefined ? a._datatype : a.getDataType()
     // validate a matrix
     if (!avalues) { throw new Error('Cannot multiply Pattern only Matrix times Dense Matrix') }
     // b dense
     const bdata = b._data
-    const bdt = b._datatype
+    const bdt = b._datatype || b.getDataType()
     // rows & columns
     const arows = a._size[0]
     const brows = b._size[0]
@@ -615,7 +463,7 @@ function factory (type, config, load, typed) {
     let zero = 0
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -668,13 +516,13 @@ function factory (type, config, load, typed) {
     // update ptr
     cptr[1] = cindex.length
 
-    // return sparse matrix
-    return new SparseMatrix({
+    // matrix to return
+    return a.createSparseMatrix({
       values: cvalues,
       index: cindex,
       ptr: cptr,
       size: [arows, 1],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
   }
 
@@ -691,12 +539,12 @@ function factory (type, config, load, typed) {
     const avalues = a._values
     const aindex = a._index
     const aptr = a._ptr
-    const adt = a._datatype
+    const adt = a._datatype || a._data === undefined ? a._datatype : a.getDataType()
     // validate a matrix
     if (!avalues) { throw new Error('Cannot multiply Pattern only Matrix times Dense Matrix') }
     // b dense
     const bdata = b._data
-    const bdt = b._datatype
+    const bdt = b._datatype || b.getDataType()
     // rows & columns
     const arows = a._size[0]
     const brows = b._size[0]
@@ -714,7 +562,7 @@ function factory (type, config, load, typed) {
     let zero = 0
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -730,12 +578,12 @@ function factory (type, config, load, typed) {
     const cindex = []
     const cptr = []
     // c matrix
-    const c = new SparseMatrix({
+    const c = a.createSparseMatrix({
       values: cvalues,
       index: cindex,
       ptr: cptr,
       size: [arows, bcolumns],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
 
     // workspace
@@ -802,12 +650,12 @@ function factory (type, config, load, typed) {
     const avalues = a._values
     const aindex = a._index
     const aptr = a._ptr
-    const adt = a._datatype
+    const adt = a._datatype || a._data === undefined ? a._datatype : a.getDataType()
     // b sparse
     const bvalues = b._values
     const bindex = b._index
     const bptr = b._ptr
-    const bdt = b._datatype
+    const bdt = b._datatype || b._data === undefined ? b._datatype : b.getDataType()
 
     // rows & columns
     const arows = a._size[0]
@@ -823,7 +671,7 @@ function factory (type, config, load, typed) {
     let mf = multiplyScalar
 
     // process data types
-    if (adt && bdt && adt === bdt && typeof adt === 'string') {
+    if (adt && bdt && adt === bdt && typeof adt === 'string' && adt !== 'mixed') {
       // datatype
       dt = adt
       // find signatures that matches (dt, dt)
@@ -836,12 +684,12 @@ function factory (type, config, load, typed) {
     const cindex = []
     const cptr = []
     // c matrix
-    const c = new SparseMatrix({
+    const c = a.createSparseMatrix({
       values: cvalues,
       index: cindex,
       ptr: cptr,
       size: [arows, bcolumns],
-      datatype: dt
+      datatype: adt === a._datatype && bdt === b._datatype ? dt : undefined
     })
 
     // workspace
@@ -912,12 +760,123 @@ function factory (type, config, load, typed) {
     return c
   }
 
-  multiply.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['multiply']}\${args[1]}\\right)`
-  }
+  /**
+   * Multiply two or more values, `x * y`.
+   * For matrices, the matrix product is calculated.
+   *
+   * Syntax:
+   *
+   *    math.multiply(x, y)
+   *    math.multiply(x, y, z, ...)
+   *
+   * Examples:
+   *
+   *    math.multiply(4, 5.2)        // returns number 20.8
+   *    math.multiply(2, 3, 4)       // returns number 24
+   *
+   *    const a = math.complex(2, 3)
+   *    const b = math.complex(4, 1)
+   *    math.multiply(a, b)          // returns Complex 5 + 14i
+   *
+   *    const c = [[1, 2], [4, 3]]
+   *    const d = [[1, 2, 3], [3, -4, 7]]
+   *    math.multiply(c, d)          // returns Array [[7, -6, 17], [13, -4, 33]]
+   *
+   *    const e = math.unit('2.1 km')
+   *    math.multiply(3, e)          // returns Unit 6.3 km
+   *
+   * See also:
+   *
+   *    divide, prod, cross, dot
+   *
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} x First value to multiply
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} y Second value to multiply
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit | Array | Matrix} Multiplication of `x` and `y`
+   */
+  return typed(name, multiplyScalar, {
+    // we extend the signatures of multiplyScalar with signatures dealing with matrices
 
-  return multiply
-}
+    'Array, Array': typed.referTo('Matrix, Matrix', selfMM => (x, y) => {
+      // check dimensions
+      _validateMatrixDimensions(arraySize(x), arraySize(y))
 
-exports.name = 'multiply'
-exports.factory = factory
+      // use dense matrix implementation
+      const m = selfMM(matrix(x), matrix(y))
+      // return array or scalar
+      return isMatrix(m) ? m.valueOf() : m
+    }),
+
+    'Matrix, Matrix': function (x, y) {
+      // dimensions
+      const xsize = x.size()
+      const ysize = y.size()
+
+      // check dimensions
+      _validateMatrixDimensions(xsize, ysize)
+
+      // process dimensions
+      if (xsize.length === 1) {
+        // process y dimensions
+        if (ysize.length === 1) {
+          // Vector * Vector
+          return _multiplyVectorVector(x, y, xsize[0])
+        }
+        // Vector * Matrix
+        return _multiplyVectorMatrix(x, y)
+      }
+      // process y dimensions
+      if (ysize.length === 1) {
+        // Matrix * Vector
+        return _multiplyMatrixVector(x, y)
+      }
+      // Matrix * Matrix
+      return _multiplyMatrixMatrix(x, y)
+    },
+
+    'Matrix, Array': typed.referTo('Matrix,Matrix', selfMM =>
+      (x, y) => selfMM(x, matrix(y))),
+
+    'Array, Matrix': typed.referToSelf(self => (x, y) => {
+      // use Matrix * Matrix implementation
+      return self(matrix(x, y.storage()), y)
+    }),
+
+    'SparseMatrix, any': function (x, y) {
+      return matAlgo11xS0s(x, y, multiplyScalar, false)
+    },
+
+    'DenseMatrix, any': function (x, y) {
+      return matAlgo14xDs(x, y, multiplyScalar, false)
+    },
+
+    'any, SparseMatrix': function (x, y) {
+      return matAlgo11xS0s(y, x, multiplyScalar, true)
+    },
+
+    'any, DenseMatrix': function (x, y) {
+      return matAlgo14xDs(y, x, multiplyScalar, true)
+    },
+
+    'Array, any': function (x, y) {
+      // use matrix implementation
+      return matAlgo14xDs(matrix(x), y, multiplyScalar, false).valueOf()
+    },
+
+    'any, Array': function (x, y) {
+      // use matrix implementation
+      return matAlgo14xDs(matrix(y), x, multiplyScalar, true).valueOf()
+    },
+
+    'any, any': multiplyScalar,
+
+    'any, any, ...any': typed.referToSelf(self => (x, y, rest) => {
+      let result = self(x, y)
+
+      for (let i = 0; i < rest.length; i++) {
+        result = self(result, rest[i])
+      }
+
+      return result
+    })
+  })
+})

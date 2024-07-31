@@ -1,7 +1,11 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { getArrayDataType } from '../../utils/array.js'
+import { typeOf } from '../../utils/is.js'
 
-function factory (type, config, load, typed) {
-  const getArrayDataType = load(require('../../type/matrix/utils/getArrayDataType'))
+const name = 'getMatrixDataType'
+const dependencies = ['typed']
+
+export const createGetMatrixDataType = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Find the data type of all elements in a matrix or array,
    * for example 'number' if all items are a number and 'Complex' if all values
@@ -16,7 +20,7 @@ function factory (type, config, load, typed) {
    *
    *    const x = [ [1, 2, 3], [4, 5, 6] ]
    *    const mixedX = [ [1, true], [2, 3] ]
-   *    const fractionX = [ [math.fraction(1, 3)], [math.fraction(1, 3] ]
+   *    const fractionX = [ [math.fraction(1, 3)], [math.fraction(1, 3)] ]
    *    const unitX = [ [math.unit('5cm')], [math.unit('5cm')] ]
    *    const bigNumberX = [ [math.bignumber(1)], [math.bignumber(0)] ]
    *    const sparse = math.sparse(x)
@@ -36,16 +40,12 @@ function factory (type, config, load, typed) {
    *
    * @return {string} A string representation of the matrix type
    */
-  const getMatrixDataType = typed('getMatrixDataType', {
-    'Array': function (x) {
-      return getArrayDataType(x)
+  return typed(name, {
+    Array: function (x) {
+      return getArrayDataType(x, typeOf)
     },
-    'Matrix': function (x) {
+    Matrix: function (x) {
       return x.getDataType()
     }
   })
-  return getMatrixDataType
-}
-
-exports.name = 'getMatrixDataType'
-exports.factory = factory
+})

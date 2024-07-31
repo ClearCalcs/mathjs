@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
   <title>math.js | currency conversion</title>
 
-  <script src="../../dist/math.js"></script>
+  <script src="../../lib/browser/math.js"></script>
 
   <style>
     body,
@@ -33,11 +34,11 @@
 <h1>Currency conversion with math.js</h1>
 
 <p>
-  This example demonstrates how you can fetch actual currencies from <a href="http://fixer.io">fixer.io</a> and use them in math.js.
+  This example demonstrates how you can fetch actual currencies from <a href="https://fixer.io">fixer.io</a> and use them in math.js.
 </p>
 
 <p>
-  Create a (free) account at <a href="http://fixer.io">fixer.io</a> and fill in your API access key below:
+  Create a (free) account at <a href="https://fixer.io">fixer.io</a> and fill in your API access key below:
 </p>
 
 <form id="fetchForm">
@@ -112,7 +113,7 @@
     const result = document.getElementById('result')
 
     try {
-      const resultStr = math.format(math.eval(expr.value), {notation: 'fixed', precision: 2})
+      const resultStr = math.format(math.evaluate(expr.value), {notation: 'fixed', precision: 2})
       result.innerHTML = '<span style="color: dodgerblue;">' + resultStr + '</span>'
     }
     catch (err) {

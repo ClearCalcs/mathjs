@@ -11,7 +11,7 @@ the code server side.
 A user could try to inject malicious JavaScript code via the expression
 parser. The expression parser of mathjs offers a sandboxed environment
 to execute expressions which should make this impossible. It's possible
-though that there are unknown security vulnerabilties, so it's important
+though that there are unknown security vulnerabilities, so it's important
 to be careful, especially when allowing server side execution of
 arbitrary expressions.
 
@@ -29,9 +29,9 @@ Version 3 and older did use `eval` for the compile step. This is not
 directly a security issue but results in a larger possible attack surface.
 
 When running a node.js server, it's good to be aware of the different
-types of security risks. The risk whe running inside a browser may be
-limited though it's good to be aware of [Cross side scripting (XSS)](https://www.wikiwand.com/en/Cross-site_scripting) vulnerabilities. A nice overview of
-security risks of a node.js servers is listed in an article [Node.js security checklist](https://blog.risingstack.com/node-js-security-checklist/) by Gergely Nemeth.
+types of security risks. The risk when running inside a browser may be
+limited, though it's good to be aware of [Cross side scripting (XSS)](https://www.wikiwand.com/en/Cross-site_scripting) vulnerabilities. A nice overview of
+the security risks of node.js servers is listed in the article [Node.js security checklist](https://blog.risingstack.com/node-js-security-checklist/) by Gergely Nemeth.
 
 ### Less vulnerable expression parser
 
@@ -40,27 +40,29 @@ risk in the expression parser:
 
 - `import` and `createUnit` which alter the built-in functionality and
   allow overriding existing functions and units.
-- `eval`, `parse`, `simplify`, and `derivative` which parse arbitrary
+- `evaluate`, `parse`, `simplify`, and `derivative` which parse arbitrary
   input into a manipulable expression tree.
 
 To make the expression parser less vulnerable whilst still supporting
 most functionality, these functions can be disabled:
 
 ```js
-const math = require('mathjs')
-const limitedEval = math.eval
+import { create, all } from 'mathjs'
+
+const math = create(all)
+const limitedEvaluate = math.evaluate
 
 math.import({
   'import':     function () { throw new Error('Function import is disabled') },
   'createUnit': function () { throw new Error('Function createUnit is disabled') },
-  'eval':       function () { throw new Error('Function eval is disabled') },
+  'evaluate':   function () { throw new Error('Function evaluate is disabled') },
   'parse':      function () { throw new Error('Function parse is disabled') },
   'simplify':   function () { throw new Error('Function simplify is disabled') },
   'derivative': function () { throw new Error('Function derivative is disabled') }
-}, {override: true})
+}, { override: true })
 
-console.log(limitedEval('sqrt(16)'))     // Ok, 4
-console.log(limitedEval('parse("2+3")')) // Error: Function parse is disabled
+console.log(limitedEvaluate('sqrt(16)'))     // Ok, 4
+console.log(limitedEvaluate('parse("2+3")')) // Error: Function parse is disabled
 ```
 
 

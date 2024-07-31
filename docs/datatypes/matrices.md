@@ -30,8 +30,8 @@ const array = [[2, 0], [-1, 3]]               // Array
 const matrix = math.matrix([[7, 1], [-2, 3]]) // Matrix
 
 // perform a calculation on an array and matrix
-math.square(array)                            // Array,  [[4, 0], [1, 9]]
-math.square(matrix)                           // Matrix, [[49, 1], [4, 9]]
+math.map(array, math.square)                  // Array,  [[4, 0], [1, 9]]
+math.map(matrix, math.square)                 // Matrix, [[49, 1], [4, 9]]
 
 // perform calculations with mixed array and matrix input
 math.add(array, matrix)                       // Matrix, [[9, 1], [-3, 6]]
@@ -122,14 +122,14 @@ math.range(3, -1, -1)   // [3, 2, 1, 0]
 
 ## Calculations
 
-All relevant functions of math.js support matrices and arrays.
+Most functions of math.js support matrices and arrays. Unary functions can be applied element-wise using via `math.map(matrix, function)`.
 
 ```js
-// perform a calculation on a matrix
+// perform an element-wise operation on a matrix using math.map
 const a = math.matrix([1, 4, 9, 16, 25])  // Matrix, [1, 4, 9, 16, 25]
-math.sqrt(a)                              // Matrix, [1, 2, 3, 4, 5]
+math.map(a, math.sqrt)                    // Matrix, [1, 2, 3, 4, 5]
 
-// perform a calculation on an array
+// use a function that has built-in matrix and array support
 const b = [1, 2, 3, 4, 5] 
 math.factorial(b)                         // Array,  [1, 2, 6, 24, 120]
 
@@ -138,14 +138,35 @@ const c = [[2, 0], [-1, 3]]               // Array
 const d = math.matrix([[7, 1], [-2, 3]])  // Matrix
 math.multiply(c, d)                       // Matrix, [[14, 2], [-13, 8]]
 
-// add a number to a matrix
+// add a number to a matrix (see broadcasting)
 math.add(c, 2)                            // Array, [[4, 2], [1, 5]]
 
 // calculate the determinant of a matrix
 math.det(c)                               // 6
 math.det(d)                               // 23
 ```
+## Broadcasting
 
+Functions that require two or more matrix like arguments that operate elementwise automatically operate as if the arguments were the same size.
+
+```js
+A = math.matrix([1, 2])       // Matrix, [1, 2]
+math.add(A, 3)                // Matrix, [3, 4]
+
+B = math.matrix([[3], [4]])   // Matrix, [[3], [4]]
+math.add(A, B)                // Matrix, [[4, 5], [5, 6]]
+```
+Any index that is in one of the arguments, can be found as if it existed on the others when the size on that dimension is one or not existing. This is valid in N dimensions.
+
+It's not possible to broadcast in cases where the size in that dimension is higher than one.
+
+```js
+math.add([1, 2], [3, 4, 5])
+// Error: shape missmatch: missmatch is found in arg with shape (2) not possible to broadcast dimension 0 with size 2 to size 3
+
+math.add([[1], [2], [3]], [[4], [5]])
+// Error: shape missmatch: missmatch is found in arg with shape (2,1) not possible to broadcast dimension 0 with size 2 to size 3
+```
 
 ## Size and Dimensions
 
@@ -184,6 +205,21 @@ const c = [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]]
 math.size(c)                                  // Array, [2, 2, 3]
 ```
 
+Note that the dimensions themselves do not have a meaning attached. 
+When creating and printing a two dimensional matrix, the first dimension is 
+normally rendered as the _column_, and the second dimension is rendered as 
+the _row_. For example:
+
+```js
+console.table(math.zeros([2, 4]))
+// 0 0 0 0
+// 0 0 0 0
+```
+
+If you have a matrix where the first dimension means `x` and the second 
+means `y`, this will look confusing since `x` is printed as _column_ 
+(vertically) and `y` as _row_ (horizontally).
+
 
 ## Resizing
 
@@ -207,18 +243,19 @@ b.resize([2])           // Matrix, size [2],    [7, 7]
 
 
 Outer dimensions of a matrix can be squeezed using the function `squeeze`. When
-getting or setting a subset in a matrix, the subset is automatically squeezed
-or unsqueezed.
+getting or setting a single value in a matrix using `subset`, the value is automatically squeezed
+or unsqueezed too.
 
 ```js
 // squeeze a matrix
 const a = [[[0, 1, 2]]]
-math.squeeze(a)         // [0, 1, 2]
-math.squeeze([[3]])     // 3
+math.squeeze(a)             // [0, 1, 2]
+math.squeeze([[3]])         // 3
 
-// subsets are automatically squeezed
+// when getting/setting a single value in a matrix using subset, 
+// it automatically squeeze/unsqueeze the value
 const b = math.matrix([[0, 1], [2, 3]])
-b.subset([1, 0])        // 2
+b.subset(math.index(1, 0))  // 2 and not [[2]]
 ```
 
 
@@ -233,12 +270,17 @@ in the matrix, and if not, a subset of the matrix will be returned.
 
 A subset can be defined using an `Index`. An `Index` contains a single value
 or a set of values for each dimension of a matrix. An `Index` can be
-created using the function `index`.
-Matrix indexes in math.js are zero-based, like most programming languages
-including JavaScript itself.
+created using the function `index`. When getting a single value from a matrix,
+`subset` will return the value itself instead of a matrix containing just this 
+value.
 
-Note that mathematical applications like Matlab and Octave work differently,
-as they use one-based indexes.
+The function `subset` normally returns a subset, but when getting or setting a
+single value in a matrix, the value itself is returned.
+
+
+Matrix indexes in math.js are zero-based, like most programming languages
+including JavaScript itself. Note that mathematical applications like Matlab 
+and Octave work differently, as they use one-based indexes.
 
 ```js
 // create some matrices
@@ -269,6 +311,68 @@ c.subset(math.index(0, 1),1)                  // Matrix, [[0, 1], [0, 0]]
 c.subset(math.index(1, [0, 1]), [2, 3])       // Matrix, [[0, 1], [2, 3]]
 e.resize([2, 3], 0)                           // Matrix, [[0, 0, 0], [0, 0, 0]]
 e.subset(math.index(1, 2), 5)                 // Matrix, [[0, 0, 0], [0, 0, 5]]
+```
+
+## Getting and setting a value in a matrix
+
+There are two methods available on matrices that allow to get or set a single 
+value inside a matrix. It is important to note that the `set` method will 
+mutate the matrix.
+
+```js
+const p = math.matrix([[1, 2], [3, 4]])
+p.set([0, 1], 5)
+// p is now [[1, 5], [3, 4]]
+p.get([1, 0]) // 3
+```
+
+When setting a value at a location outside of the current matrix size using the
+method `.set()`, the matrix will be resized. By default, new items will be 
+initialized with zero, but it is possible to specify an alternative value using
+the optional third argument `defaultValue`.
+
+## Advanced Indexing
+
+Boolean array indexing is a technique that allows you to filter, replace, and set values in an array based on logical conditions. This can be done by creating a boolean array that represents the desired conditions, and then using that array as an index to select the elements of the original array that meet those conditions.
+
+For example, a boolean array can be created to represent all the even numbers in an array, and then used to filter the original array to only include the even numbers. Alternatively, a boolean array can be created to represent all the elements of an array that are greater than a certain value, and then used to replace all the elements of the original array that are greater than that value with a new value.
+
+
+```js
+const q = [1, 2, 3, 4]
+math.subset(q, math.index([true, false, true, false]))      // Array [1, 3]
+
+// filtering
+math.subset(q, math.index(math.larger(q, 2)))               // Array [3, 4]
+
+// filtering with no matches
+math.subset(q, math.index(math.larger(q, 5)))               // Array []
+
+// setting specific values, please note that the replacement value is broadcasted
+q = math.subset(q, math.index(math.smaller(q, 3)), 0)       // q = [0, 0, 3, 4]
+
+// replacing specific values
+math.subset(q, math.index(math.equal(q, 0)), [1, 2])        // q = [1, 2, 3, 4]
+```
+
+The same can be accomplished in the parser in a much more compact manner. Please note that everything after `#` are comments.
+```js
+math.evaluate(`
+q = [1, 2, 3, 4]
+q[[true, false, true, false]] # Matrix [1, 3]
+q[q>2]                        # Matrix [3, 4]
+q[q>5]                        # Matrix []
+q[q <3] = 0                   # q = [0, 0, 3, 4]
+q[q==0] = [1, 2]              # q = [1, 2, 3, 4]
+`)
+```
+The expression inside the index can be as complex as needed as long it evaluates to an array of booleans of the same size.
+```js
+math.evaluate(`
+q = [1, 2, 3, 4]
+r = [6, 5, 4, 3]
+q[q > 3 and r < 4]     # [4]
+`)
 ```
 
 ## Iterating
@@ -325,6 +429,23 @@ The type of matrix can be selected when creating a matrix using the construction
 // create sparse matrices
 const m1 = math.matrix([[0, 1], [0, 0]], 'sparse')
 const m2 = math.identity(1000, 1000, 'sparse')
+```
+
+You can also coerce an array or matrix into sparse storage format with the
+`sparse` function.
+```js
+const md = math.matrix([[0, 1], [0,0]])  // dense
+const ms = math.sparse(md)               // sparse
+```
+
+Caution: `sparse` called on a JavaScript array of _n_ plain numbers produces
+a matrix with one column and _n_ rows -- in contrast to `matrix`, which
+produces a 1-dimensional matrix object with _n_ entries, i.e., a vector
+(_not_ a 1 by _n_ "row vector" nor an _n_ by 1 "column vector", but just a plain
+vector of length _n_).
+```js
+const mv = math.matrix([0, 0, 1])  // Has size [3]
+const mc = math.sparse([0, 0, 1])  // A "column vector," has size [3, 1]
 ```
 
 ## API

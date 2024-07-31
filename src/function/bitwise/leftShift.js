@@ -1,22 +1,34 @@
-'use strict'
+import { createMatAlgo02xDS0 } from '../../type/matrix/utils/matAlgo02xDS0.js'
+import { createMatAlgo11xS0s } from '../../type/matrix/utils/matAlgo11xS0s.js'
+import { createMatAlgo14xDs } from '../../type/matrix/utils/matAlgo14xDs.js'
+import { createMatAlgo01xDSid } from '../../type/matrix/utils/matAlgo01xDSid.js'
+import { createMatAlgo10xSids } from '../../type/matrix/utils/matAlgo10xSids.js'
+import { createMatAlgo08xS0Sid } from '../../type/matrix/utils/matAlgo08xS0Sid.js'
+import { factory } from '../../utils/factory.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
+import { createUseMatrixForArrayScalar } from './useMatrixForArrayScalar.js'
+import { leftShiftNumber } from '../../plain/number/index.js'
+import { leftShiftBigNumber } from '../../utils/bignumber/bitwise.js'
 
-const isInteger = require('../../utils/number').isInteger
-const bigLeftShift = require('../../utils/bignumber/leftShift')
+const name = 'leftShift'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'zeros',
+  'DenseMatrix',
+  'concat'
+]
 
-function factory (type, config, load, typed) {
-  const latex = require('../../utils/latex')
-
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const equalScalar = load(require('../relational/equalScalar'))
-  const zeros = load(require('../matrix/zeros'))
-
-  const algorithm01 = load(require('../../type/matrix/utils/algorithm01'))
-  const algorithm02 = load(require('../../type/matrix/utils/algorithm02'))
-  const algorithm08 = load(require('../../type/matrix/utils/algorithm08'))
-  const algorithm10 = load(require('../../type/matrix/utils/algorithm10'))
-  const algorithm11 = load(require('../../type/matrix/utils/algorithm11'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
+export const createLeftShift = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, zeros, DenseMatrix, concat }) => {
+  const matAlgo01xDSid = createMatAlgo01xDSid({ typed })
+  const matAlgo02xDS0 = createMatAlgo02xDS0({ typed, equalScalar })
+  const matAlgo08xS0Sid = createMatAlgo08xS0Sid({ typed, equalScalar })
+  const matAlgo10xSids = createMatAlgo10xSids({ typed, DenseMatrix })
+  const matAlgo11xS0s = createMatAlgo11xS0s({ typed, equalScalar })
+  const matAlgo14xDs = createMatAlgo14xDs({ typed })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
+  const useMatrixForArrayScalar = createUseMatrixForArrayScalar({ typed, matrix })
 
   /**
    * Bitwise left logical shift of a value x by y number of bits, `x << y`.
@@ -31,108 +43,62 @@ function factory (type, config, load, typed) {
    *
    *    math.leftShift(1, 2)               // returns number 4
    *
-   *    math.leftShift([1, 2, 3], 4)       // returns Array [16, 32, 64]
+   *    math.leftShift([1, 2, 4], 4)       // returns Array [16, 32, 64]
    *
    * See also:
    *
    *    leftShift, bitNot, bitOr, bitXor, rightArithShift, rightLogShift
    *
-   * @param  {number | BigNumber | Array | Matrix} x Value to be shifted
-   * @param  {number | BigNumber} y Amount of shifts
-   * @return {number | BigNumber | Array | Matrix} `x` shifted left `y` times
+   * @param  {number | BigNumber | bigint | Array | Matrix} x Value to be shifted
+   * @param  {number | BigNumber | bigint} y Amount of shifts
+   * @return {number | BigNumber | bigint | Array | Matrix} `x` shifted left `y` times
    */
-  const leftShift = typed('leftShift', {
+  return typed(
+    name,
+    {
+      'number, number': leftShiftNumber,
 
-    'number, number': function (x, y) {
-      if (!isInteger(x) || !isInteger(y)) {
-        throw new Error('Integers expected in function leftShift')
-      }
+      'BigNumber, BigNumber': leftShiftBigNumber,
 
-      return x << y
+      'bigint, bigint': (x, y) => x << y,
+
+      'SparseMatrix, number | BigNumber': typed.referToSelf(self => (x, y) => {
+        // check scalar
+        if (equalScalar(y, 0)) {
+          return x.clone()
+        }
+        return matAlgo11xS0s(x, y, self, false)
+      }),
+
+      'DenseMatrix, number | BigNumber': typed.referToSelf(self => (x, y) => {
+        // check scalar
+        if (equalScalar(y, 0)) {
+          return x.clone()
+        }
+        return matAlgo14xDs(x, y, self, false)
+      }),
+
+      'number | BigNumber, SparseMatrix': typed.referToSelf(self => (x, y) => {
+        // check scalar
+        if (equalScalar(x, 0)) {
+          return zeros(y.size(), y.storage())
+        }
+        return matAlgo10xSids(y, x, self, true)
+      }),
+
+      'number | BigNumber, DenseMatrix': typed.referToSelf(self => (x, y) => {
+        // check scalar
+        if (equalScalar(x, 0)) {
+          return zeros(y.size(), y.storage())
+        }
+        return matAlgo14xDs(y, x, self, true)
+      })
     },
-
-    'BigNumber, BigNumber': bigLeftShift,
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm08(x, y, leftShift, false)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm02(y, x, leftShift, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm01(x, y, leftShift, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, leftShift)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return leftShift(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return leftShift(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return leftShift(x, matrix(y))
-    },
-
-    'SparseMatrix, number | BigNumber': function (x, y) {
-      // check scalar
-      if (equalScalar(y, 0)) {
-        return x.clone()
-      }
-      return algorithm11(x, y, leftShift, false)
-    },
-
-    'DenseMatrix, number | BigNumber': function (x, y) {
-      // check scalar
-      if (equalScalar(y, 0)) {
-        return x.clone()
-      }
-      return algorithm14(x, y, leftShift, false)
-    },
-
-    'number | BigNumber, SparseMatrix': function (x, y) {
-      // check scalar
-      if (equalScalar(x, 0)) {
-        return zeros(y.size(), y.storage())
-      }
-      return algorithm10(y, x, leftShift, true)
-    },
-
-    'number | BigNumber, DenseMatrix': function (x, y) {
-      // check scalar
-      if (equalScalar(x, 0)) {
-        return zeros(y.size(), y.storage())
-      }
-      return algorithm14(y, x, leftShift, true)
-    },
-
-    'Array, number | BigNumber': function (x, y) {
-      // use matrix implementation
-      return leftShift(matrix(x), y).valueOf()
-    },
-
-    'number | BigNumber, Array': function (x, y) {
-      // use matrix implementation
-      return leftShift(x, matrix(y)).valueOf()
-    }
-  })
-
-  leftShift.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['leftShift']}\${args[1]}\\right)`
-  }
-
-  return leftShift
-}
-
-exports.name = 'leftShift'
-exports.factory = factory
+    useMatrixForArrayScalar,
+    matrixAlgorithmSuite({
+      SS: matAlgo08xS0Sid,
+      DS: matAlgo01xDSid,
+      SD: matAlgo02xDS0
+    })
+  )
+})

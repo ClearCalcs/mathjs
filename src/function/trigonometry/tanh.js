@@ -1,13 +1,16 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { tanh as _tanh } from '../../utils/number.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'tanh'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createTanh = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Calculate the hyperbolic tangent of a value,
    * defined as `tanh(x) = (exp(2 * x) - 1) / (exp(2 * x) + 1)`.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with matrix hyperbolic tangent, this function does
+   * not apply to matrices.
    *
    * Syntax:
    *
@@ -24,48 +27,11 @@ function factory (type, config, load, typed) {
    *
    *    sinh, cosh, coth
    *
-   * @param {number | BigNumber | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} Hyperbolic tangent of x
+   * @param {number | BigNumber | Complex} x  Function input
+   * @return {number | BigNumber | Complex} Hyperbolic tangent of x
    */
-  const tanh = typed('tanh', {
-    'number': _tanh,
-
-    'Complex': function (x) {
-      return x.tanh()
-    },
-
-    'BigNumber': function (x) {
-      return x.tanh()
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function tanh is no angle')
-      }
-      return tanh(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      // deep map collection, skip zeros since tanh(0) = 0
-      return deepMap(x, tanh, true)
-    }
+  return typed('tanh', {
+    number: _tanh,
+    'Complex | BigNumber': x => x.tanh()
   })
-
-  tanh.toTex = { 1: `\\tanh\\left(\${args[0]}\\right)` }
-
-  return tanh
-}
-
-/**
- * Calculate the hyperbolic tangent of a number
- * @param {number} x
- * @returns {number}
- * @private
- */
-const _tanh = Math.tanh || function (x) {
-  const e = Math.exp(2 * x)
-  return (e - 1) / (e + 1)
-}
-
-exports.name = 'tanh'
-exports.factory = factory
+})

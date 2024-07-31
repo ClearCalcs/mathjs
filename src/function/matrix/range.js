@@ -1,11 +1,10 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { noBignumber, noMatrix } from '../../utils/noop.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
+const name = 'range'
+const dependencies = ['typed', 'config', '?matrix', '?bignumber', 'smaller', 'smallerEq', 'larger', 'largerEq', 'add', 'isPositive']
 
-  const ZERO = new type.BigNumber(0)
-  const ONE = new type.BigNumber(1)
-
+export const createRange = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, matrix, bignumber, smaller, smallerEq, larger, largerEq, add, isPositive }) => {
   /**
    * Create an array from a range.
    * By default, the range end is excluded. This can be customized by providing
@@ -26,11 +25,11 @@ function factory (type, config, load, typed) {
    *
    * - `str: string`
    *   A string 'start:end' or 'start:step:end'
-   * - `start: {number | BigNumber}`
+   * - `start: {number | BigNumber | Unit}`
    *   Start of the range
-   * - `end: number | BigNumber`
+   * - `end: number | BigNumber | Unit`
    *   End of the range, excluded by default, included when parameter includeEnd=true
-   * - `step: number | BigNumber`
+   * - `step: number | BigNumber | Unit`
    *   Step size. Default value is 1.
    * - `includeEnd: boolean`
    *   Option to specify whether to include the end or not. False by default.
@@ -41,6 +40,7 @@ function factory (type, config, load, typed) {
    *     math.range(2, -3, -1)   // [2, 1, 0, -1, -2]
    *     math.range('2:1:6')     // [2, 3, 4, 5]
    *     math.range(2, 6, true)  // [2, 3, 4, 5, 6]
+   *     math.range(math.unit(2, 'm'), math.unit(-3, 'm'), math.unit(-1, 'm')) // [2 m, 1 m, 0 m , -1 m, -2 m]
    *
    * See also:
    *
@@ -49,55 +49,57 @@ function factory (type, config, load, typed) {
    * @param {*} args   Parameters describing the ranges `start`, `end`, and optional `step`.
    * @return {Array | Matrix} range
    */
-  const range = typed('range', {
+  return typed(name, {
     // TODO: simplify signatures when typed-function supports default values and optional arguments
 
     // TODO: a number or boolean should not be converted to string here
-    'string': _strRange,
+    string: _strRange,
     'string, boolean': _strRange,
 
     'number, number': function (start, end) {
-      return _out(_rangeEx(start, end, 1))
+      return _out(_range(start, end, 1, false))
     },
     'number, number, number': function (start, end, step) {
-      return _out(_rangeEx(start, end, step))
+      return _out(_range(start, end, step, false))
     },
     'number, number, boolean': function (start, end, includeEnd) {
-      return includeEnd
-        ? _out(_rangeInc(start, end, 1))
-        : _out(_rangeEx(start, end, 1))
+      return _out(_range(start, end, 1, includeEnd))
     },
     'number, number, number, boolean': function (start, end, step, includeEnd) {
-      return includeEnd
-        ? _out(_rangeInc(start, end, step))
-        : _out(_rangeEx(start, end, step))
+      return _out(_range(start, end, step, includeEnd))
     },
 
     'BigNumber, BigNumber': function (start, end) {
-      return _out(_bigRangeEx(start, end, ONE))
+      const BigNumber = start.constructor
+
+      return _out(_range(start, end, new BigNumber(1), false))
     },
     'BigNumber, BigNumber, BigNumber': function (start, end, step) {
-      return _out(_bigRangeEx(start, end, step))
+      return _out(_range(start, end, step, false))
     },
     'BigNumber, BigNumber, boolean': function (start, end, includeEnd) {
-      return includeEnd
-        ? _out(_bigRangeInc(start, end, ONE))
-        : _out(_bigRangeEx(start, end, ONE))
+      const BigNumber = start.constructor
+
+      return _out(_range(start, end, new BigNumber(1), includeEnd))
     },
     'BigNumber, BigNumber, BigNumber, boolean': function (start, end, step, includeEnd) {
-      return includeEnd
-        ? _out(_bigRangeInc(start, end, step))
-        : _out(_bigRangeEx(start, end, step))
+      return _out(_range(start, end, step, includeEnd))
+    },
+    'Unit, Unit, Unit': function (start, end, step) {
+      return _out(_range(start, end, step, false))
+    },
+    'Unit, Unit, Unit, boolean': function (start, end, step, includeEnd) {
+      return _out(_range(start, end, step, includeEnd))
     }
 
   })
 
-  range.toTex = undefined // use default template
-
-  return range
-
   function _out (arr) {
-    return config.matrix === 'Array' ? arr : matrix(arr)
+    if (config.matrix === 'Matrix') {
+      return matrix ? matrix(arr) : noMatrix()
+    }
+
+    return arr
   }
 
   function _strRange (str, includeEnd) {
@@ -106,120 +108,40 @@ function factory (type, config, load, typed) {
       throw new SyntaxError('String "' + str + '" is no valid range')
     }
 
-    let fn
     if (config.number === 'BigNumber') {
-      fn = includeEnd ? _bigRangeInc : _bigRangeEx
-      return _out(fn(
-        new type.BigNumber(r.start),
-        new type.BigNumber(r.end),
-        new type.BigNumber(r.step)))
+      if (bignumber === undefined) {
+        noBignumber()
+      }
+
+      return _out(_range(
+        bignumber(r.start),
+        bignumber(r.end),
+        bignumber(r.step)),
+      includeEnd)
     } else {
-      fn = includeEnd ? _rangeInc : _rangeEx
-      return _out(fn(r.start, r.end, r.step))
+      return _out(_range(r.start, r.end, r.step, includeEnd))
     }
   }
 
   /**
-   * Create a range with numbers. End is excluded
-   * @param {number} start
-   * @param {number} end
-   * @param {number} step
+   * Create a range with numbers or BigNumbers
+   * @param {number | BigNumber | Unit} start
+   * @param {number | BigNumber | Unit} end
+   * @param {number | BigNumber | Unit} step
+   * @param {boolean} includeEnd
    * @returns {Array} range
    * @private
    */
-  function _rangeEx (start, end, step) {
+  function _range (start, end, step, includeEnd) {
     const array = []
+    const ongoing = isPositive(step)
+      ? includeEnd ? smallerEq : smaller
+      : includeEnd ? largerEq : larger
     let x = start
-    if (step > 0) {
-      while (x < end) {
-        array.push(x)
-        x += step
-      }
-    } else if (step < 0) {
-      while (x > end) {
-        array.push(x)
-        x += step
-      }
+    while (ongoing(x, end)) {
+      array.push(x)
+      x = add(x, step)
     }
-
-    return array
-  }
-
-  /**
-   * Create a range with numbers. End is included
-   * @param {number} start
-   * @param {number} end
-   * @param {number} step
-   * @returns {Array} range
-   * @private
-   */
-  function _rangeInc (start, end, step) {
-    const array = []
-    let x = start
-    if (step > 0) {
-      while (x <= end) {
-        array.push(x)
-        x += step
-      }
-    } else if (step < 0) {
-      while (x >= end) {
-        array.push(x)
-        x += step
-      }
-    }
-
-    return array
-  }
-
-  /**
-   * Create a range with big numbers. End is excluded
-   * @param {BigNumber} start
-   * @param {BigNumber} end
-   * @param {BigNumber} step
-   * @returns {Array} range
-   * @private
-   */
-  function _bigRangeEx (start, end, step) {
-    const array = []
-    let x = start
-    if (step.gt(ZERO)) {
-      while (x.lt(end)) {
-        array.push(x)
-        x = x.plus(step)
-      }
-    } else if (step.lt(ZERO)) {
-      while (x.gt(end)) {
-        array.push(x)
-        x = x.plus(step)
-      }
-    }
-
-    return array
-  }
-
-  /**
-   * Create a range with big numbers. End is included
-   * @param {BigNumber} start
-   * @param {BigNumber} end
-   * @param {BigNumber} step
-   * @returns {Array} range
-   * @private
-   */
-  function _bigRangeInc (start, end, step) {
-    const array = []
-    let x = start
-    if (step.gt(ZERO)) {
-      while (x.lte(end)) {
-        array.push(x)
-        x = x.plus(step)
-      }
-    } else if (step.lt(ZERO)) {
-      while (x.gte(end)) {
-        array.push(x)
-        x = x.plus(step)
-      }
-    }
-
     return array
   }
 
@@ -267,7 +189,4 @@ function factory (type, config, load, typed) {
         return null
     }
   }
-}
-
-exports.name = 'range'
-exports.factory = factory
+})

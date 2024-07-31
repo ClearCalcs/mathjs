@@ -1,12 +1,17 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createTrigUnit } from './trigUnit.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'cos'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createCos = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
+  const trigUnit = createTrigUnit({ typed })
+
   /**
    * Calculate the cosine of a value.
    *
-   * For matrices, the function is evaluated element wise.
+   * To avoid confusion with the matrix cosine, this function does not
+   * apply to matrices.
    *
    * Syntax:
    *
@@ -26,36 +31,11 @@ function factory (type, config, load, typed) {
    *
    *    cos, tan
    *
-   * @param {number | BigNumber | Complex | Unit | Array | Matrix} x  Function input
-   * @return {number | BigNumber | Complex | Array | Matrix} Cosine of x
+   * @param {number | BigNumber | Complex | Unit} x  Function input
+   * @return {number | BigNumber | Complex} Cosine of x
    */
-  const cos = typed('cos', {
-    'number': Math.cos,
-
-    'Complex': function (x) {
-      return x.cos()
-    },
-
-    'BigNumber': function (x) {
-      return x.cos()
-    },
-
-    'Unit': function (x) {
-      if (!x.hasBase(type.Unit.BASE_UNITS.ANGLE)) {
-        throw new TypeError('Unit in function cos is no angle')
-      }
-      return cos(x.value)
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, cos)
-    }
-  })
-
-  cos.toTex = { 1: `\\cos\\left(\${args[0]}\\right)` }
-
-  return cos
-}
-
-exports.name = 'cos'
-exports.factory = factory
+  return typed(name, {
+    number: Math.cos,
+    'Complex | BigNumber': x => x.cos()
+  }, trigUnit)
+})

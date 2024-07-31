@@ -1,13 +1,13 @@
-'use strict'
+import { flatten as flattenArray } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const clone = require('../../utils/object').clone
-const _flatten = require('../../utils/array').flatten
+const name = 'flatten'
+const dependencies = ['typed', 'matrix']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createFlatten = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix }) => {
   /**
-   * Flatten a multi dimensional matrix into a single dimensional matrix.
+   * Flatten a multidimensional matrix into a single dimensional matrix.
+   * A new matrix is returned, the original matrix is left untouched.
    *
    * Syntax:
    *
@@ -24,22 +24,15 @@ function factory (type, config, load, typed) {
    * @param {Matrix | Array} x   Matrix to be flattened
    * @return {Matrix | Array} Returns the flattened matrix
    */
-  const flatten = typed('flatten', {
-    'Array': function (x) {
-      return _flatten(clone(x))
+  return typed(name, {
+    Array: function (x) {
+      return flattenArray(x)
     },
 
-    'Matrix': function (x) {
-      const flat = _flatten(clone(x.toArray()))
-      // TODO: return the same matrix type as x
+    Matrix: function (x) {
+      const flat = flattenArray(x.toArray())
+      // TODO: return the same matrix type as x (Dense or Sparse Matrix)
       return matrix(flat)
     }
   })
-
-  flatten.toTex = undefined // use default template
-
-  return flatten
-}
-
-exports.name = 'flatten'
-exports.factory = factory
+})

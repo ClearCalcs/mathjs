@@ -1,11 +1,12 @@
-'use strict'
+import { isBigNumber } from '../../utils/is.js'
+import { isInteger } from '../../utils/number.js'
+import { resize } from '../../utils/array.js'
+import { factory } from '../../utils/factory.js'
 
-const isInteger = require('../../utils/number').isInteger
-const resize = require('../../utils/array').resize
+const name = 'zeros'
+const dependencies = ['typed', 'config', 'matrix', 'BigNumber']
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-
+export const createZeros = /* #__PURE__ */ factory(name, dependencies, ({ typed, config, matrix, BigNumber }) => {
   /**
    * Create a matrix filled with zeros. The created matrix can have one or
    * multiple dimensions.
@@ -21,6 +22,7 @@ function factory (type, config, load, typed) {
    *
    * Examples:
    *
+   *    math.zeros()                   // returns []
    *    math.zeros(3)                  // returns [0, 0, 0]
    *    math.zeros(3, 2)               // returns [[0, 0], [0, 0], [0, 0]]
    *    math.zeros(3, 'dense')         // returns [0, 0, 0]
@@ -32,12 +34,12 @@ function factory (type, config, load, typed) {
    *
    *    ones, identity, size, range
    *
-   * @param {...number | Array} size    The size of each dimension of the matrix
+   * @param {...(number|BigNumber) | Array} size    The size of each dimension of the matrix
    * @param {string} [format]           The Matrix storage format
    *
    * @return {Array | Matrix}           A matrix filled with zeros
    */
-  const zeros = typed('zeros', {
+  return typed(name, {
     '': function () {
       return (config.matrix === 'Array')
         ? _zeros([])
@@ -58,9 +60,9 @@ function factory (type, config, load, typed) {
       }
     },
 
-    'Array': _zeros,
+    Array: _zeros,
 
-    'Matrix': function (size) {
+    Matrix: function (size) {
       const format = size.storage()
       return _zeros(size.valueOf(), format)
     },
@@ -69,10 +71,6 @@ function factory (type, config, load, typed) {
       return _zeros(size.valueOf(), format)
     }
   })
-
-  zeros.toTex = undefined // use default template
-
-  return zeros
 
   /**
    * Create an Array or Matrix with zeros
@@ -83,7 +81,7 @@ function factory (type, config, load, typed) {
    */
   function _zeros (size, format) {
     const hasBigNumbers = _normalize(size)
-    const defaultValue = hasBigNumbers ? new type.BigNumber(0) : 0
+    const defaultValue = hasBigNumbers ? new BigNumber(0) : 0
     _validate(size)
 
     if (format) {
@@ -107,7 +105,7 @@ function factory (type, config, load, typed) {
   function _normalize (size) {
     let hasBigNumbers = false
     size.forEach(function (value, index, arr) {
-      if (type.isBigNumber(value)) {
+      if (isBigNumber(value)) {
         hasBigNumbers = true
         arr[index] = value.toNumber()
       }
@@ -123,9 +121,6 @@ function factory (type, config, load, typed) {
       }
     })
   }
-}
+})
 
 // TODO: zeros contains almost the same code as ones. Reuse this?
-
-exports.name = 'zeros'
-exports.factory = factory

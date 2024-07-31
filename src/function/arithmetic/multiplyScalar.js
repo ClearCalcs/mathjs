@@ -1,24 +1,25 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { multiplyNumber } from '../../plain/number/index.js'
 
-function factory (type, config, load, typed) {
+const name = 'multiplyScalar'
+const dependencies = ['typed']
+
+export const createMultiplyScalar = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Multiply two scalar values, `x * y`.
    * This function is meant for internal use: it is used by the public function
    * `multiply`
    *
-   * This function does not support collections (Array or Matrix), and does
-   * not validate the number of of inputs.
+   * This function does not support collections (Array or Matrix).
    *
-   * @param  {number | BigNumber | Fraction | Complex | Unit} x   First value to multiply
-   * @param  {number | BigNumber | Fraction | Complex} y          Second value to multiply
-   * @return {number | BigNumber | Fraction | Complex | Unit}                      Multiplication of `x` and `y`
+   * @param  {number | BigNumber | bigint | Fraction | Complex | Unit} x   First value to multiply
+   * @param  {number | BigNumber | bigint | Fraction | Complex} y          Second value to multiply
+   * @return {number | BigNumber | bigint | Fraction | Complex | Unit}     Multiplication of `x` and `y`
    * @private
    */
-  const multiplyScalar = typed('multiplyScalar', {
+  return typed('multiplyScalar', {
 
-    'number, number': function (x, y) {
-      return x * y
-    },
+    'number, number': multiplyNumber,
 
     'Complex, Complex': function (x, y) {
       return x.mul(y)
@@ -28,29 +29,16 @@ function factory (type, config, load, typed) {
       return x.times(y)
     },
 
+    'bigint, bigint': function (x, y) {
+      return x * y
+    },
+
     'Fraction, Fraction': function (x, y) {
       return x.mul(y)
     },
 
-    'number | Fraction | BigNumber | Complex, Unit': function (x, y) {
-      const res = y.clone()
-      res.value = (res.value === null) ? res._normalize(x) : multiplyScalar(res.value, x)
-      return res
-    },
+    'number | Fraction | BigNumber | Complex, Unit': (x, y) => y.multiply(x),
 
-    'Unit, number | Fraction | BigNumber | Complex': function (x, y) {
-      const res = x.clone()
-      res.value = (res.value === null) ? res._normalize(y) : multiplyScalar(res.value, y)
-      return res
-    },
-
-    'Unit, Unit': function (x, y) {
-      return x.multiply(y)
-    }
-
+    'Unit, number | Fraction | BigNumber | Complex | Unit': (x, y) => x.multiply(y)
   })
-
-  return multiplyScalar
-}
-
-exports.factory = factory
+})

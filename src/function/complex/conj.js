@@ -1,8 +1,10 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { deepMap } from '../../utils/collection.js'
 
-const deepMap = require('../../utils/collection/deepMap')
+const name = 'conj'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createConj = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
    * Compute the complex conjugate of a complex value.
    * If `x = a+bi`, the complex conjugate of `x` is `a - bi`.
@@ -28,28 +30,9 @@ function factory (type, config, load, typed) {
    * @return {number | BigNumber | Complex | Array | Matrix}
    *            The complex conjugate of x
    */
-  const conj = typed('conj', {
-    'number': function (x) {
-      return x
-    },
-
-    'BigNumber': function (x) {
-      return x
-    },
-
-    'Complex': function (x) {
-      return x.conjugate()
-    },
-
-    'Array | Matrix': function (x) {
-      return deepMap(x, conj)
-    }
+  return typed(name, {
+    'number | BigNumber | Fraction': x => x,
+    Complex: x => x.conjugate(),
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  conj.toTex = { 1: `\\left(\${args[0]}\\right)^*` }
-
-  return conj
-}
-
-exports.name = 'conj'
-exports.factory = factory
+})

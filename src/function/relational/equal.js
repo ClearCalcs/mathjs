@@ -1,22 +1,29 @@
-'use strict'
+import { factory } from '../../utils/factory.js'
+import { createMatAlgo03xDSf } from '../../type/matrix/utils/matAlgo03xDSf.js'
+import { createMatAlgo07xSSf } from '../../type/matrix/utils/matAlgo07xSSf.js'
+import { createMatAlgo12xSfs } from '../../type/matrix/utils/matAlgo12xSfs.js'
+import { createMatrixAlgorithmSuite } from '../../type/matrix/utils/matrixAlgorithmSuite.js'
 
-function factory (type, config, load, typed) {
-  const matrix = load(require('../../type/matrix/function/matrix'))
-  const equalScalar = load(require('./equalScalar'))
+const name = 'equal'
+const dependencies = [
+  'typed',
+  'matrix',
+  'equalScalar',
+  'DenseMatrix',
+  'concat'
+]
 
-  const algorithm03 = load(require('../../type/matrix/utils/algorithm03'))
-  const algorithm07 = load(require('../../type/matrix/utils/algorithm07'))
-  const algorithm12 = load(require('../../type/matrix/utils/algorithm12'))
-  const algorithm13 = load(require('../../type/matrix/utils/algorithm13'))
-  const algorithm14 = load(require('../../type/matrix/utils/algorithm14'))
-
-  const latex = require('../../utils/latex')
+export const createEqual = /* #__PURE__ */ factory(name, dependencies, ({ typed, matrix, equalScalar, DenseMatrix, concat }) => {
+  const matAlgo03xDSf = createMatAlgo03xDSf({ typed })
+  const matAlgo07xSSf = createMatAlgo07xSSf({ typed, DenseMatrix })
+  const matAlgo12xSfs = createMatAlgo12xSfs({ typed, DenseMatrix })
+  const matrixAlgorithmSuite = createMatrixAlgorithmSuite({ typed, matrix, concat })
 
   /**
    * Test whether two values are equal.
    *
    * The function tests whether the relative difference between x and y is
-   * smaller than the configured epsilon. The function cannot be used to
+   * smaller than the configured relTol and absTol. The function cannot be used to
    * compare values smaller than approximately 2.22e-16.
    *
    * For matrices, the function is evaluated element wise.
@@ -52,12 +59,24 @@ function factory (type, config, load, typed) {
    *
    *    unequal, smaller, smallerEq, larger, largerEq, compare, deepEqual, equalText
    *
-   * @param  {number | BigNumber | boolean | Complex | Unit | string | Array | Matrix} x First value to compare
-   * @param  {number | BigNumber | boolean | Complex | Unit | string | Array | Matrix} y Second value to compare
+   * @param  {number | BigNumber | bigint | boolean | Complex | Unit | string | Array | Matrix} x First value to compare
+   * @param  {number | BigNumber | bigint | boolean | Complex | Unit | string | Array | Matrix} y Second value to compare
    * @return {boolean | Array | Matrix} Returns true when the compared values are equal, else returns false
    */
-  const equal = typed('equal', {
+  return typed(
+    name,
+    createEqualNumber({ typed, equalScalar }),
+    matrixAlgorithmSuite({
+      elop: equalScalar,
+      SS: matAlgo07xSSf,
+      DS: matAlgo03xDSf,
+      Ss: matAlgo12xSfs
+    })
+  )
+})
 
+export const createEqualNumber = factory(name, ['typed', 'equalScalar'], ({ typed, equalScalar }) => {
+  return typed(name, {
     'any, any': function (x, y) {
       // strict equality for null and undefined?
       if (x === null) { return y === null }
@@ -66,72 +85,6 @@ function factory (type, config, load, typed) {
       if (y === undefined) { return x === undefined }
 
       return equalScalar(x, y)
-    },
-
-    'SparseMatrix, SparseMatrix': function (x, y) {
-      return algorithm07(x, y, equalScalar)
-    },
-
-    'SparseMatrix, DenseMatrix': function (x, y) {
-      return algorithm03(y, x, equalScalar, true)
-    },
-
-    'DenseMatrix, SparseMatrix': function (x, y) {
-      return algorithm03(x, y, equalScalar, false)
-    },
-
-    'DenseMatrix, DenseMatrix': function (x, y) {
-      return algorithm13(x, y, equalScalar)
-    },
-
-    'Array, Array': function (x, y) {
-      // use matrix implementation
-      return equal(matrix(x), matrix(y)).valueOf()
-    },
-
-    'Array, Matrix': function (x, y) {
-      // use matrix implementation
-      return equal(matrix(x), y)
-    },
-
-    'Matrix, Array': function (x, y) {
-      // use matrix implementation
-      return equal(x, matrix(y))
-    },
-
-    'SparseMatrix, any': function (x, y) {
-      return algorithm12(x, y, equalScalar, false)
-    },
-
-    'DenseMatrix, any': function (x, y) {
-      return algorithm14(x, y, equalScalar, false)
-    },
-
-    'any, SparseMatrix': function (x, y) {
-      return algorithm12(y, x, equalScalar, true)
-    },
-
-    'any, DenseMatrix': function (x, y) {
-      return algorithm14(y, x, equalScalar, true)
-    },
-
-    'Array, any': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(x), y, equalScalar, false).valueOf()
-    },
-
-    'any, Array': function (x, y) {
-      // use matrix implementation
-      return algorithm14(matrix(y), x, equalScalar, true).valueOf()
     }
   })
-
-  equal.toTex = {
-    2: `\\left(\${args[0]}${latex.operators['equal']}\${args[1]}\\right)`
-  }
-
-  return equal
-}
-
-exports.name = 'equal'
-exports.factory = factory
+})

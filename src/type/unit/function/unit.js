@@ -1,20 +1,26 @@
-'use strict'
+import { factory } from '../../../utils/factory.js'
+import { deepMap } from '../../../utils/collection.js'
 
-const deepMap = require('../../../utils/collection/deepMap')
+const name = 'unit'
+const dependencies = ['typed', 'Unit']
 
-function factory (type, config, load, typed) {
+// This function is named createUnitFunction to prevent a naming conflict with createUnit
+export const createUnitFunction = /* #__PURE__ */ factory(name, dependencies, ({ typed, Unit }) => {
   /**
    * Create a unit. Depending on the passed arguments, the function
-   * will create and return a new math.type.Unit object.
+   * will create and return a new math.Unit object.
    * When a matrix is provided, all elements will be converted to units.
    *
    * Syntax:
    *
    *     math.unit(unit : string)
-   *     math.unit(value : number, unit : string)
+   *     math.unit(value : number, valuelessUnit : Unit)
+   *     math.unit(value : number, valuelessUnit : string)
    *
    * Examples:
    *
+   *    const kph = math.unit('km/h')   // returns Unit km/h (valueless)
+   *    const v = math.unit(25, kph)    // returns Unit 25 km/h
    *    const a = math.unit(5, 'cm')    // returns Unit 50 mm
    *    const b = math.unit('23 kg')    // returns Unit 23 kg
    *    a.to('m')                       // returns Unit 0.05 m
@@ -27,35 +33,28 @@ function factory (type, config, load, typed) {
    * @return {Unit | Array | Matrix}    The created unit
    */
 
-  const unit = typed('unit', {
-    'Unit': function (x) {
+  return typed(name, {
+    Unit: function (x) {
       return x.clone()
     },
 
-    'string': function (x) {
-      if (type.Unit.isValuelessUnit(x)) {
-        return new type.Unit(null, x) // a pure unit
+    string: function (x) {
+      if (Unit.isValuelessUnit(x)) {
+        return new Unit(null, x) // a pure unit
       }
 
-      return type.Unit.parse(x, { allowNoUnits: true }) // a unit with value, like '5cm'
+      return Unit.parse(x, { allowNoUnits: true }) // a unit with value, like '5cm'
     },
 
-    'number | BigNumber | Fraction | Complex, string': function (value, unit) {
-      return new type.Unit(value, unit)
+    'number | BigNumber | Fraction | Complex, string | Unit': function (value, unit) {
+      return new Unit(value, unit)
     },
 
-    'Array | Matrix': function (x) {
-      return deepMap(x, unit)
-    }
+    'number | BigNumber | Fraction': function (value) {
+      // dimensionless
+      return new Unit(value)
+    },
+
+    'Array | Matrix': typed.referToSelf(self => x => deepMap(x, self))
   })
-
-  unit.toTex = {
-    1: `\\left(\${args[0]}\\right)`,
-    2: `\\left(\\left(\${args[0]}\\right)\${args[1]}\\right)`
-  }
-
-  return unit
-}
-
-exports.name = 'unit'
-exports.factory = factory
+})

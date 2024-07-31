@@ -1,41 +1,40 @@
-'use strict'
-const memoize = require('../function').memoize
+import { memoize } from '../function.js'
 
 /**
  * Calculate BigNumber e
  * @param {function} BigNumber   BigNumber constructor
  * @returns {BigNumber} Returns e
  */
-exports.e = memoize(function (BigNumber) {
+export const createBigNumberE = memoize(function (BigNumber) {
   return new BigNumber(1).exp()
-}, hasher)
+}, { hasher })
 
 /**
  * Calculate BigNumber golden ratio, phi = (1+sqrt(5))/2
  * @param {function} BigNumber   BigNumber constructor
  * @returns {BigNumber} Returns phi
  */
-exports.phi = memoize(function (BigNumber) {
+export const createBigNumberPhi = memoize(function (BigNumber) {
   return new BigNumber(1).plus(new BigNumber(5).sqrt()).div(2)
-}, hasher)
+}, { hasher })
 
 /**
  * Calculate BigNumber pi.
  * @param {function} BigNumber   BigNumber constructor
  * @returns {BigNumber} Returns pi
  */
-exports.pi = memoize(function (BigNumber) {
+export const createBigNumberPi = memoize(function (BigNumber) {
   return BigNumber.acos(-1)
-}, hasher)
+}, { hasher })
 
 /**
  * Calculate BigNumber tau, tau = 2 * pi
  * @param {function} BigNumber   BigNumber constructor
  * @returns {BigNumber} Returns tau
  */
-exports.tau = memoize(function (BigNumber) {
-  return exports.pi(BigNumber).times(2)
-}, hasher)
+export const createBigNumberTau = memoize(function (BigNumber) {
+  return createBigNumberPi(BigNumber).times(2)
+}, { hasher })
 
 /**
  * Create a hash for a BigNumber constructor function. The created has is

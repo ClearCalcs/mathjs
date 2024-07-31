@@ -1,11 +1,20 @@
-'use strict'
+import { applyCallback } from '../../utils/applyCallback.js'
+import { factory } from '../../utils/factory.js'
 
-const maxArgumentCount = require('../../utils/function').maxArgumentCount
+const name = 'map'
+const dependencies = ['typed']
 
-function factory (type, config, load, typed) {
+export const createMap = /* #__PURE__ */ factory(name, dependencies, ({ typed }) => {
   /**
-   * Create a new matrix or array with the results of the callback function executed on
-   * each entry of the matrix/array.
+   * Create a new matrix or array with the results of a callback function executed on
+   * each entry of a given matrix/array.
+   *
+   * For each entry of the input, the callback is invoked with three arguments:
+   * the value of the entry, the index at which that entry occurs, and the full
+   * matrix/array being traversed. Note that because the matrix/array might be
+   * multidimensional, the "index" argument is always an array of numbers giving
+   * the index in each dimension. This is true even for vectors: the "index"
+   * argument is an array of length 1, rather than simply a number.
    *
    * Syntax:
    *
@@ -17,28 +26,29 @@ function factory (type, config, load, typed) {
    *      return value * value
    *    })  // returns [1, 4, 9]
    *
+   *    // The callback is normally called with three arguments:
+   *    //    callback(value, index, Array)
+   *    // If you want to call with only one argument, use:
+   *    math.map([1, 2, 3], x => math.format(x)) // returns ['1', '2', '3']
+   *
    * See also:
    *
    *    filter, forEach, sort
    *
-   * @param {Matrix | Array} x    The matrix to iterate on.
-   * @param {Function} callback   The callback method is invoked with three
-   *                              parameters: the value of the element, the index
-   *                              of the element, and the matrix being traversed.
-   * @return {Matrix | array}     Transformed map of x
+   * @param {Matrix | Array} x    The input to iterate on.
+   * @param {Function} callback
+   *     The function to call (as described above) on each entry of the input
+   * @return {Matrix | array}
+   *     Transformed map of x; always has the same type and shape as x
    */
-  const map = typed('map', {
+  return typed(name, {
     'Array, function': _map,
 
     'Matrix, function': function (x, callback) {
       return x.map(callback)
     }
   })
-
-  map.toTex = undefined // use default template
-
-  return map
-}
+})
 
 /**
  * Map for a multi dimensional array
@@ -48,9 +58,6 @@ function factory (type, config, load, typed) {
  * @private
  */
 function _map (array, callback) {
-  // figure out what number of arguments the callback function expects
-  const args = maxArgumentCount(callback)
-
   const recurse = function (value, index) {
     if (Array.isArray(value)) {
       return value.map(function (child, i) {
@@ -59,18 +66,9 @@ function _map (array, callback) {
       })
     } else {
       // invoke the callback function with the right number of arguments
-      if (args === 1) {
-        return callback(value)
-      } else if (args === 2) {
-        return callback(value, index)
-      } else { // 3 or -1
-        return callback(value, index, array)
-      }
+      return applyCallback(callback, value, index, array, 'map')
     }
   }
 
   return recurse(array, [])
 }
-
-exports.name = 'map'
-exports.factory = factory

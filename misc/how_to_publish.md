@@ -3,41 +3,33 @@
 This document describes the steps required to publish a new version of math.js.
 
 
-## Update version number
+## Update version number and history
 
-Update the version number `package.json`.
-
-Run `npm install` to also have this version number updated in `package-lock.json`
-
-
-## Update history
-
-Update the date and version number in the file `HISTORY.md`. Verify whether all
+1. Update the version number `package.json`.
+2. Run `npm install` to also have this version number updated in `package-lock.json`
+3. Update the date and version number in the file `HISTORY.md`. Verify whether all
 changes in the new version are described.
 
 
 ## Build and test
 
-Build the distribution files in folders `dist` and `lib`, and test everything by running:
+Build the distribution files in folders under `lib`, and test everything by running:
 
     npm run build-and-test
 
-After the build is complete, verify if the files are created and contain the
+After the build is complete, verify whether the files are created and contain the
 correct date and version number in the header.
-
-Check whether there are new markdown files generated in `./docs` and add if
-so add them to git.
 
 
 ## Commit
 
 - Commit the final code.
 - Merge the develop branch into the master branch.
-- Push to github.
+- Push to Github.
 
-Now go to travis-ci and verify if the tests run fine there as well:
+Now go to Github Actions and verify if the tests run fine there as well:
 
-  https://travis-ci.org/josdejong/mathjs
+https://github.com/josdejong/mathjs/actions
 
 If everything is well, create a tag for the new version, like:
 
@@ -51,18 +43,6 @@ Publish to npm:
 
     npm publish
 
-or directly pass a valid one time password (two factor authentication):
-
-    npm publish --otp 123456
-
-
-## Test published libraries
-
-Install the libraries locally and test whether they work correctly:
-
-    cd tmp-folder
-    npm install mathjs
-
 
 ## Update the website
 
@@ -71,9 +51,10 @@ Wait until the new version of math.js is available on cdnjs.org.
 The website is located in the `gh-pages` branch of the project.
 Follow the readme in the `gh-pages` branch on how to update the website.
 
+
 ## Update the REST API
 
-Update the `mathjs-rest` project (served at http://api.mathjs.org).
+Update the `mathjs-rest` project (served at https://api.mathjs.org).
 
 
 ## Back to develop
