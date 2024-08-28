@@ -1,8 +1,37 @@
 # History
 
-# unpublished changes since 13.0.3
+# changes since 13.1.1
 
+- Docs: fix broken links on the Configuration page. Thanks @vassudanagunta.
+
+# 2024-08-27, 13.1.1
+
+- Fix security vulnerability in the CLI and web API allowing to call functions
+  `import`, `createUnit` and `reviver`, allowing to get access to the internal
+  math namespace and allowing arbitrary code execution. Thanks @StarlightPWN.
+- Fix security vulnerability: when overwriting a `rawArgs` function with a 
+  non-`rawArgs` function, it was still called with raw arguments. This was both
+  a functional issue and a security issue. Thanks @StarlightPWN.
+- Fix security vulnerability: ensure that `ObjectWrappingMap` cannot delete
+  unsafe properties. Thanks @StarlightPWN.
+- Fix: not being able to use methods and properties on arrays inside the
+  expression parser.
+
+# 2024-08-26, 13.1.0
+
+- Feat: support multiple inputs in function `map` (#3228, #3196). 
+  Thanks @dvd101x.
 - Feat: add matrix datatypes in more cases (#3235). Thanks @dvd101x.
+- Feat: export util functions `isMap`, `isPartitionedMap`, and 
+  `isObjectWrappingMap`.
+- Fix: #3241 function `map` not always working with matrices (#3242). 
+  Thanks @dvd101x.
+- Fix: #3244 fix broken link to `ResultSet` in the docs about classes.
+- Docs: add a link to the documentation page about the syntax expression
+  from the function `evaluate` (see #3238).
+- Docs: improve the documentation of `scope` and fix the example
+  `custom_scope_objects.js` (#3150)
+- Docs: spelling fixes in the embedded docs (#3252). Thanks @dvd101x.
 
 # 2024-07-19, 13.0.3
 
@@ -507,7 +536,7 @@ Non-breaking changes:
 
 # 2022-05-24, version 10.6.0
 
-- Implementation of fourier transform functions `fft` and `ifft` (#2540).
+- Implementation of Fourier transform functions `fft` and `ifft` (#2540).
   Thanks @HanchaiN.
 - Fix TypeScript types not being listed in the exported fields (#2569).
   Thanks @mattvague.
